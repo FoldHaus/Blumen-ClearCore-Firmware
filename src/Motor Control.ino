@@ -1,23 +1,23 @@
 #include "ClearCore.h"
 
 // The INPUT_A_B_FILTER must match the Input A, B filter setting in MSP (Advanced >> Input A, B Filtering...)
-#define INPUT_A_B_FILTER 20
+constexpr auto INPUT_A_B_FILTER = 20;
 
 // Select the baud rate to match the target serial device.
-#define baudRate 9600
+constexpr auto baudRate = 9600;
 
 // Defines the motor's connector as ConnectorM0
-#define motor1 ConnectorM1
-#define motor2 ConnectorM2
-#define motor3 ConnectorM3
+auto &motor1 = ConnectorM1;
+auto &motor2 = ConnectorM2;
+auto &motor3 = ConnectorM3;
 
 // Defines the manual control inputs
-#define inputMotor1Close A11
-#define inputMotor1Open A10
-#define inputMotor2Close A9
-#define inputMotor2Open DI8
-#define inputMotor3Close DI7
-#define inputMotor3Open DI6
+constexpr auto inputMotor1Close = A11;
+constexpr auto inputMotor1Open = A10;
+constexpr auto inputMotor2Close = A9;
+constexpr auto inputMotor2Open = DI8;
+constexpr auto inputMotor3Close = DI7;
+constexpr auto inputMotor3Open = DI6;
 
 // The current state of the input pins
 PinStatus inputStatusMotor1Close;
