@@ -216,11 +216,10 @@ void MoveToPosition(int motorNum, int positionNum) {
   delay(2 + INPUT_A_B_FILTER);
 }
 
-struct
-{
-    u8 MotorOnePos;
-    u8 MotorTwoPos;
-    u8 MotorThreePos;
+struct {
+  u8 MotorOnePos;
+  u8 MotorTwoPos;
+  u8 MotorThreePos;
 } typedef packet;
 
 void loop() {
