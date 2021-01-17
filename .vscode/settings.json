@@ -1,0 +1,8 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "ms-vscode.cpptools",
+  "C_Cpp.intelliSenseEngineFallback": "Disabled",
+  "files.exclude": {
+    "*/**/.vscode": true
+  }
+}
