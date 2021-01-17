@@ -216,11 +216,18 @@ void MoveToPosition(int motorNum, int positionNum) {
   delay(2 + INPUT_A_B_FILTER);
 }
 
+typedef uint8_t u8;
+
 struct {
   u8 MotorOnePos;
   u8 MotorTwoPos;
   u8 MotorThreePos;
-} typedef packet;
+} typedef Packet;
+
+typedef union {
+  Packet packet;
+  uint8_t raw[sizeof(Packet)];
+} PacketSerializer;
 
 void loop() {
   // readInputsAndSetDesiredPositions();
