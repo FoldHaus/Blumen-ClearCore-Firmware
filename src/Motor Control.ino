@@ -263,24 +263,53 @@ void MoveToPosition(int motorNum, int positionNum) {
   delay(2 + INPUT_A_B_FILTER);
 }
 
+constexpr unsigned long updateIntervalMilliseconds = 10e3;
+auto lastUpdateTime = Milliseconds() - updateIntervalMilliseconds;
+
+constexpr unsigned long dhcpIntervalMilliseconds = 1000e3;
+auto lastDhcpTime = Milliseconds() - dhcpIntervalMilliseconds;
+
+/**
+ * Check if a certain amount of time has past since some previously saved time
+ *
+ * @param last The last time, as returned by Milliseconds()
+ * @param time The delta time, in microseconds
+ */
+bool haveMillisecondsPassed(unsigned long last, unsigned long time) {
+  return (Milliseconds() - lastUpdateTime) >= time;
+}
+
+/**
+ * Have we acquired a DHCP lease?
+ */
+bool hasLease = false;
+
 void ethernetLoop() {
-  auto const ip = EthernetMgr.LocalIp();
+  const auto update = haveMillisecondsPassed(lastUpdateTime, updateIntervalMilliseconds);
+  if (update) {
+    lastUpdateTime += updateIntervalMilliseconds;
+  }
 
-  // TODO: If we've gone a while with our current IP, get a new one
-  const bool newDHCPLeaseTime = false;
+  if (!EthernetMgr.PhyLinkActive()) {
+    if (update) {
+      Serial.println("Ethernet cable not plugged in");
+    }
+    return;
+  }
 
-  if (!ip || newDHCPLeaseTime) {
-
-    // Use DHCP to configure the local IP address.
-    bool dhcpSuccess = EthernetMgr.DhcpBegin();
-    if (dhcpSuccess) {
+  // Update DHCP if:
+  // - We don't have an address yes and it's been a short while
+  // - It's been a longer while
+  if ((!hasLease && update) || haveMillisecondsPassed(lastDhcpTime, dhcpIntervalMilliseconds)) {
+    lastDhcpTime = Milliseconds();
+    // Use DHCP to configure the local IP address. This blocks for up to 1.5sec
+    hasLease = EthernetMgr.DhcpBegin();
+    if (hasLease) {
       Serial.print("DHCP successfully assigned an IP address: ");
       Serial.println(EthernetMgr.LocalIp().StringValue());
     } else {
       Serial.println("DHCP configuration was unsuccessful!");
-      Serial.println("Continuing without Ethernet...");
-
-      return;
+      Serial.println("Continuing without DHCP...");
     }
   }
 
@@ -320,11 +349,12 @@ void ethernetLoop() {
 
     Serial.println("Sending response...");
 
-    // Send a "Hello, world!" reply packet back to the sender.
+    // Connect back to whoever sent us something
     Udp.Connect(Udp.RemoteIp(), Udp.RemotePort());
 
-    // TODO: See if we need to make an Atomic copy of statusPacketBuffer first
+    // TODO: See if we need to make an Atomic copy of statusPacketBuffer (disabled interrupts)
     const auto copy = statusPacketBuffer;
+
     Serial.print("Response contents: ");
     for (int i = 0; i < bytesRead; i++) {
       Serial.print(" ");
@@ -336,6 +366,17 @@ void ethernetLoop() {
   }
 }
 
+/**
+ * Main loop to update saved status of motors and temperature
+ */
+void updateStatusLoop() {
+  // TODO: Real numbers for these
+  statusPacketBuffer.packet.Temperature = 123;
+  statusPacketBuffer.packet.MotorOneStatus = 45;
+  statusPacketBuffer.packet.MotorTwoStatus = 67;
+  statusPacketBuffer.packet.MotorThreeStatus = 89;
+}
+
 void loop() {
   // readInputsAndSetDesiredPositions();
 
@@ -345,6 +386,8 @@ void loop() {
   // MoveToPosition(3,desiredMotorPosition3);
 
   ethernetLoop();
+
+  updateStatusLoop();
 
   MoveToPosition(1, 1);
   delay(interMovementDelay);
