@@ -1,4 +1,6 @@
 #include "ClearCore.h"
+#include "EthernetManager.h"
+#include "EthernetUdp.h"
 
 // The INPUT_A_B_FILTER must match the Input A, B filter setting in MSP (Advanced >> Input A, B Filtering...)
 constexpr auto INPUT_A_B_FILTER = 20;
@@ -32,6 +34,43 @@ int desiredMotorPosition2 = 1;
 int desiredMotorPosition3 = 1;
 
 int interMovementDelay = 300000;
+
+// The local port to listen for connections on. Pick a port over 49152
+constexpr uint16_t localPort = 49443;
+
+typedef uint8_t u8;
+typedef uint16_t u16;
+
+struct {
+  u8 MotorOnePos;
+  u8 MotorTwoPos;
+  u8 MotorThreePos;
+} typedef IncomingPacket;
+
+typedef union {
+  IncomingPacket packet;
+  unsigned char raw[sizeof(IncomingPacket)];
+} IncomingPacketSerializer;
+
+// Buffer for holding received packets.
+IncomingPacketSerializer incomingPacketBuffer;
+
+struct {
+  u8 MotorOneStatus;
+  u8 MotorTwoStatus;
+  u8 MotorThreeStatus;
+  u16 Temperature;
+} typedef StatusPacket;
+
+typedef union {
+  StatusPacket packet;
+  unsigned char raw[sizeof(StatusPacket)];
+} StatusPacketSerializer;
+
+// Buffer for holding Status packets.
+StatusPacketSerializer statusPacketBuffer;
+
+EthernetUdp Udp;
 
 void setup() {
   // Sets all motor connectors to the correct mode for Absolute Position mode
@@ -72,6 +111,14 @@ void setup() {
   //        continue;
   //    }
   //   Serial.println("Motor 2 Ready");
+
+  // Run the setup for the ClearCore Ethernet manager.
+  EthernetMgr.Setup();
+  Serial.println("Ethernet Enabled");
+
+  // Begin listening on the local port for UDP datagrams
+  Udp.Begin(localPort);
+  Serial.println("Listening for UDP packets");
 }
 
 // return text description given an integer motor position
@@ -216,18 +263,78 @@ void MoveToPosition(int motorNum, int positionNum) {
   delay(2 + INPUT_A_B_FILTER);
 }
 
-typedef uint8_t u8;
+void ethernetLoop() {
+  auto const ip = EthernetMgr.LocalIp();
 
-struct {
-  u8 MotorOnePos;
-  u8 MotorTwoPos;
-  u8 MotorThreePos;
-} typedef Packet;
+  // TODO: If we've gone a while with our current IP, get a new one
+  const bool newDHCPLeaseTime = false;
 
-typedef union {
-  Packet packet;
-  uint8_t raw[sizeof(Packet)];
-} PacketSerializer;
+  if (!ip || newDHCPLeaseTime) {
+
+    // Use DHCP to configure the local IP address.
+    bool dhcpSuccess = EthernetMgr.DhcpBegin();
+    if (dhcpSuccess) {
+      Serial.print("DHCP successfully assigned an IP address: ");
+      Serial.println(EthernetMgr.LocalIp().StringValue());
+    } else {
+      Serial.println("DHCP configuration was unsuccessful!");
+      Serial.println("Continuing without Ethernet...");
+
+      return;
+    }
+  }
+
+  const auto packetSize = Udp.PacketParse();
+  if (packetSize > 0) {
+    Serial.print("Received packet of size ");
+    Serial.print(packetSize);
+    Serial.println(" bytes.");
+    Serial.print("Remote IP: ");
+    Serial.println(Udp.RemoteIp().StringValue());
+    Serial.print("Remote port: ");
+    Serial.println(Udp.RemotePort());
+
+    // Read the packet.
+    int32_t bytesRead = Udp.PacketRead(incomingPacketBuffer.raw, sizeof(incomingPacketBuffer));
+    Serial.print("Number of bytes read from packet: ");
+    Serial.println(bytesRead);
+    Serial.print("Packet contents:");
+    for (int i = 0; i < bytesRead; i++) {
+      Serial.print(" ");
+      Serial.print(incomingPacketBuffer.raw[i], HEX);
+    }
+    Serial.println();
+
+    if (bytesRead != sizeof(incomingPacketBuffer)) {
+      Serial.print("Received an unexpected number of bytes in UDP datagram. Expected: ");
+      Serial.println(sizeof(incomingPacketBuffer));
+    } else {
+      Serial.println("Parsed message:");
+      Serial.print("Motor 1 Pos: ");
+      Serial.println(incomingPacketBuffer.packet.MotorOnePos);
+      Serial.print("Motor 2 Pos: ");
+      Serial.println(incomingPacketBuffer.packet.MotorTwoPos);
+      Serial.print("Motor 3 Pos: ");
+      Serial.println(incomingPacketBuffer.packet.MotorThreePos);
+    }
+
+    Serial.println("Sending response...");
+
+    // Send a "Hello, world!" reply packet back to the sender.
+    Udp.Connect(Udp.RemoteIp(), Udp.RemotePort());
+
+    // TODO: See if we need to make an Atomic copy of statusPacketBuffer first
+    const auto copy = statusPacketBuffer;
+    Serial.print("Response contents: ");
+    for (int i = 0; i < bytesRead; i++) {
+      Serial.print(" ");
+      Serial.print(copy.raw[i], HEX);
+    }
+
+    Udp.PacketWrite(statusPacketBuffer.raw, sizeof(statusPacketBuffer.raw));
+    Udp.PacketSend();
+  }
+}
 
 void loop() {
   // readInputsAndSetDesiredPositions();
@@ -236,6 +343,8 @@ void loop() {
   // MoveToPosition(1,desiredMotorPosition1);
   // MoveToPosition(2,desiredMotorPosition2);
   // MoveToPosition(3,desiredMotorPosition3);
+
+  ethernetLoop();
 
   MoveToPosition(1, 1);
   delay(interMovementDelay);
