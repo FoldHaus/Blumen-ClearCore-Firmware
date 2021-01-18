@@ -369,6 +369,7 @@ void ethernetLoop() {
       Serial.print(" ");
       Serial.print(copy.raw[i], HEX);
     }
+    Serial.println();
 
     Udp.PacketWrite(statusPacketBuffer.raw, sizeof(statusPacketBuffer.raw));
     Udp.PacketSend();
