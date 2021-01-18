@@ -284,6 +284,21 @@ bool haveMillisecondsPassed(unsigned long last, unsigned long time) {
  */
 bool hasLease = false;
 
+/**
+ * Function called by UDP datagram handler. Do stuff with incoming packet.
+ */
+void handleIncomingPacket(IncomingPacket packet) {
+  Serial.println("Parsed message:");
+  Serial.print("Motor 1 Pos: ");
+  Serial.println(packet.MotorOnePos);
+  Serial.print("Motor 2 Pos: ");
+  Serial.println(packet.MotorTwoPos);
+  Serial.print("Motor 3 Pos: ");
+  Serial.println(packet.MotorThreePos);
+
+  // TODO: Do something more with these, like give the motors a new command
+}
+
 void ethernetLoop() {
   const auto update = haveMillisecondsPassed(lastUpdateTime, updateIntervalMilliseconds);
   if (update) {
@@ -338,13 +353,7 @@ void ethernetLoop() {
       Serial.print("Received an unexpected number of bytes in UDP datagram. Expected: ");
       Serial.println(sizeof(incomingPacketBuffer));
     } else {
-      Serial.println("Parsed message:");
-      Serial.print("Motor 1 Pos: ");
-      Serial.println(incomingPacketBuffer.packet.MotorOnePos);
-      Serial.print("Motor 2 Pos: ");
-      Serial.println(incomingPacketBuffer.packet.MotorTwoPos);
-      Serial.print("Motor 3 Pos: ");
-      Serial.println(incomingPacketBuffer.packet.MotorThreePos);
+      handleIncomingPacket(incomingPacketBuffer.packet);
     }
 
     Serial.println("Sending response...");
