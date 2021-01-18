@@ -1,0 +1,25 @@
+{
+  "configurations": [
+    {
+      "name": "arm-gcc",
+      "compilerPath": "\"${config:local.arm-gcc.compilerDir}/bin/arm-none-eabi-g++\" -fno-exceptions -funsigned-char -funsigned-bitfields -fno-strict-aliasing",
+      "intelliSenseMode": "gcc-arm",
+      "includePath": [
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/ArduinoCore-API/api",
+        "${workspaceFolder}/ClearCore-Arduino-wrapper/Teknic/LwIP/LwIP/port/include",
+        "${workspaceFolder}/ClearCore-Arduino-wrapper/Teknic/LwIP/LwIP/src/include",
+        "${workspaceFolder}/ClearCore-Arduino-wrapper/variants/clearcore",
+        "${workspaceFolder}/ClearCore-Arduino-wrapper/variants/clearcore/Third Party/SAME53/CMSIS/Device/Include",
+        "${workspaceFolder}/ClearCore-Arduino-wrapper/Teknic/libClearCore/inc",
+        "${workspaceFolder}/ClearCore-Arduino-wrapper/cores/arduino",
+        "${config:local.arm-gcc.compilerDir}/arm-none-eabi/include"
+      ],
+      "forcedInclude": ["${workspaceFolder}/Include.h"],
+      "defines": [""],
+      "cStandard": "gnu11",
+      "cppStandard": "gnu++11"
+    }
+  ],
+  "version": 4
+}

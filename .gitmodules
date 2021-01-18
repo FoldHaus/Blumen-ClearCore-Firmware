@@ -1,0 +1,6 @@
+[submodule "ArduinoCore-API"]
+	path = ArduinoCore-API
+	url = https://github.com/arduino/ArduinoCore-API.git
+[submodule "ClearCore-Arduino-wrapper"]
+	path = ClearCore-Arduino-wrapper
+	url = https://github.com/Teknic-Inc/ClearCore-Arduino-wrapper.git
