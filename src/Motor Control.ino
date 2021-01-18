@@ -300,6 +300,9 @@ void handleIncomingPacket(IncomingPacket packet) {
 }
 
 void ethernetLoop() {
+  // Keep the connection alive.
+  EthernetMgr.Refresh();
+
   const auto update = haveMillisecondsPassed(lastUpdateTime, updateIntervalMilliseconds);
   if (update) {
     lastUpdateTime += updateIntervalMilliseconds;
