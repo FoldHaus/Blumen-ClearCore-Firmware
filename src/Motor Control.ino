@@ -5,10 +5,10 @@
 // The INPUT_A_B_FILTER must match the Input A, B filter setting in MSP (Advanced >> Input A, B Filtering...)
 constexpr auto INPUT_A_B_FILTER = 20;
 
-// Select the baud rate to match the target serial device.
+// Baud rate for serial output
 constexpr auto baudRate = 9600;
 
-// Defines the motor's connector as ConnectorM0
+// Defines the motor's connector as ConnectorM1, M2, and M3
 auto &motor1 = ConnectorM1;
 auto &motor2 = ConnectorM2;
 auto &motor3 = ConnectorM3;
@@ -29,11 +29,10 @@ PinStatus inputStatusMotor2Open;
 PinStatus inputStatusMotor3Close;
 PinStatus inputStatusMotor3Open;
 
+// sets desired motor positions to closes (motorposition 1 = closed, 2 = open)
 int desiredMotorPosition1 = 1;
 int desiredMotorPosition2 = 1;
 int desiredMotorPosition3 = 1;
-
-int interMovementDelay = 300000;
 
 // The local port to listen for connections on. Pick a port over 49152
 constexpr uint16_t localPort = 49443;
@@ -72,11 +71,17 @@ StatusPacketSerializer statusPacketBuffer;
 
 EthernetUdp Udp;
 
+// time in milliseconds that the ethernet command has to be "fresher" than. 1,800,000 = 30 minutes
+const int failsafeCommandTime = 1800000;
+unsigned long timeOfLastNetworkPositionCommand;
+
 void setup() {
   // Sets all motor connectors to the correct mode for Absolute Position mode
   MotorMgr.MotorModeSet(MotorManager::MOTOR_ALL, Connector::CPM_MODE_A_DIRECT_B_DIRECT);
 
-  // Enforces the state of the motor's A and B inputs before enabling the motor
+  // Enforces the state of the motor's A and B inputs before enabling the motor.
+  // A and B states being false is closed position
+
   motor1.MotorInAState(false);
   motor1.MotorInBState(false);
   motor2.MotorInAState(false);
@@ -94,23 +99,16 @@ void setup() {
 
   // Enables the motors; homing will begin automatically
   motor1.EnableRequest(true);
-  Serial.println("Motor 1 Enabled");
+  Serial.println("Motor 1 Enabled... homing");
   motor2.EnableRequest(true);
-  Serial.println("Motor 2 Enabled");
+  Serial.println("Motor 2 Enabled... homing");
   motor3.EnableRequest(true);
-  Serial.println("Motor 3 Enabled");
+  Serial.println("Motor 3 Enabled... homing");
 
   // Sets the 3 analog/digital inputs to input digital mode
   ConnectorA9.Mode(Connector::INPUT_DIGITAL);
   ConnectorA10.Mode(Connector::INPUT_DIGITAL);
   ConnectorA11.Mode(Connector::INPUT_DIGITAL);
-
-  //    // Waits for HLFB to assert (waits for homing to complete if applicable)
-  //   Serial.println("Waiting for motor 2 HLFB...");
-  //    while (motor2.HlfbState() != MotorDriver::HLFB_ASSERTED) {
-  //        continue;
-  //    }
-  //   Serial.println("Motor 2 Ready");
 
   // Run the setup for the ClearCore Ethernet manager.
   EthernetMgr.Setup();
@@ -119,7 +117,7 @@ void setup() {
   // Begin listening on the local port for UDP datagrams
   Udp.Begin(localPort);
   Serial.println("Listening for UDP packets");
-}
+} // end of setup
 
 // return text description given an integer motor position
 String positionNumToString(int positionNum) {
@@ -155,28 +153,33 @@ void readInputsAndSetDesiredPositions() {
   // is fully open
   if (inputStatusMotor1Close) {
     desiredMotorPosition1 = 1;
+    Serial.print("MANUAL OVERRIDE Motor 1 desired position: ");
+    Serial.println(positionNumToString(desiredMotorPosition1));
   } else if (inputStatusMotor1Open) {
     desiredMotorPosition1 = 2;
+    Serial.print("MANUAL OVERRIDE Motor 1 desired position: ");
+    Serial.println(positionNumToString(desiredMotorPosition1));
   }
 
   if (inputStatusMotor2Close) {
     desiredMotorPosition2 = 1;
+    Serial.print("MANUAL OVERRIDE Motor 2 desired position: ");
+    Serial.println(positionNumToString(desiredMotorPosition2));
   } else if (inputStatusMotor2Open) {
     desiredMotorPosition2 = 2;
+    Serial.print("MANUAL OVERRIDE Motor 2 desired position: ");
+    Serial.println(positionNumToString(desiredMotorPosition2));
   }
 
   if (inputStatusMotor3Close) {
     desiredMotorPosition3 = 1;
+    Serial.print("MANUAL OVERRIDE Motor 3 desired position: ");
+    Serial.println(positionNumToString(desiredMotorPosition3));
   } else if (inputStatusMotor3Open) {
     desiredMotorPosition3 = 2;
+    Serial.print("MANUAL OVERRIDE Motor 3 desired position: ");
+    Serial.println(positionNumToString(desiredMotorPosition3));
   }
-
-  Serial.print("Motor 1 desired position: ");
-  Serial.println(positionNumToString(desiredMotorPosition1));
-  Serial.print("Motor 2 desired position: ");
-  Serial.println(positionNumToString(desiredMotorPosition2));
-  Serial.print("Motor 3 desired position: ");
-  Serial.println(positionNumToString(desiredMotorPosition3));
 }
 
 void MoveToPosition(int motorNum, int positionNum) {
@@ -288,15 +291,17 @@ bool hasLease = false;
  * Function called by UDP datagram handler. Do stuff with incoming packet.
  */
 void handleIncomingPacket(IncomingPacket packet) {
-  Serial.println("Parsed message:");
-  Serial.print("Motor 1 Pos: ");
-  Serial.println(packet.MotorOnePos);
-  Serial.print("Motor 2 Pos: ");
-  Serial.println(packet.MotorTwoPos);
-  Serial.print("Motor 3 Pos: ");
-  Serial.println(packet.MotorThreePos);
+  Serial.println("Parsed message from ethernet:");
+  Serial.print("ETHERNET Motor 1 desired position: ");
+  Serial.println(positionNumToString(packet.MotorOnePos));
+  Serial.print("ETHERNET Motor 2 desired position: ");
+  Serial.println(positionNumToString(packet.MotorTwoPos));
+  Serial.print("ETHERNET Motor 3 desired position: ");
+  Serial.println(positionNumToString(packet.MotorThreePos));
 
-  // TODO: Do something more with these, like give the motors a new command
+  desiredMotorPosition1 = packet.MotorOnePos;
+  desiredMotorPosition2 = packet.MotorTwoPos;
+  desiredMotorPosition3 = packet.MotorThreePos;
 }
 
 void ethernetLoop() {
@@ -356,6 +361,7 @@ void ethernetLoop() {
       Serial.print("Received an unexpected number of bytes in UDP datagram. Expected: ");
       Serial.println(sizeof(incomingPacketBuffer));
     } else {
+      timeOfLastNetworkPositionCommand = Milliseconds();
       handleIncomingPacket(incomingPacketBuffer.packet);
     }
 
@@ -391,42 +397,41 @@ void updateStatusLoop() {
 }
 
 void loop() {
-  // readInputsAndSetDesiredPositions();
 
-  // Issue position command to all motors
-  // MoveToPosition(1,desiredMotorPosition1);
-  // MoveToPosition(2,desiredMotorPosition2);
-  // MoveToPosition(3,desiredMotorPosition3);
-
+  // reads packet through ethernet and sets desiredmotorpositions via 'handleIncomingPacket' function.
   ethernetLoop();
 
+  // if more time has passed than allowed since last ethernet-commanded time then CLOSE
+  const auto tooMuchTimeFail = haveMillisecondsPassed(lastUpdateTime, updateIntervalMilliseconds);
+  if (tooMuchTimeFail) {
+    Serial.print("Last ethernet command was ");
+    Serial.print((Milliseconds() - timeOfLastNetworkPositionCommand) / 60000);
+    Serial.println(" minutes ago. REQUESTING CLOSING ALL FLOWERS.");
+    desiredMotorPosition1 = 1;
+    desiredMotorPosition2 = 1;
+    desiredMotorPosition3 = 1;
+  }
+
+  // deliberately overwrites desired positions with any manually commanded positions if toggled
+  readInputsAndSetDesiredPositions();
+
+  // moves motors to desired positions if HLFB asserts (waits for homing to complete if applicable)
+  if (motor1.HlfbState() != MotorDriver::HLFB_ASSERTED) {
+    Serial.println("Waiting for motor 1 HLFB...");
+  } else {
+    MoveToPosition(1, desiredMotorPosition1);
+  }
+  if (motor2.HlfbState() != MotorDriver::HLFB_ASSERTED) {
+    Serial.println("Waiting for motor 2 HLFB...");
+  } else {
+    MoveToPosition(2, desiredMotorPosition2);
+  }
+  if (motor3.HlfbState() != MotorDriver::HLFB_ASSERTED) {
+    Serial.println("Waiting for motor 3 HLFB...");
+  } else {
+    MoveToPosition(3, desiredMotorPosition3);
+  }
+
+  // sends back status via ethernet
   updateStatusLoop();
-
-  MoveToPosition(1, 1);
-  delay(interMovementDelay);
-  MoveToPosition(2, 2);
-  delay(interMovementDelay);
-  MoveToPosition(3, 3);
-  delay(interMovementDelay);
-  MoveToPosition(1, 3);
-  delay(interMovementDelay);
-  MoveToPosition(2, 1);
-  delay(interMovementDelay);
-  MoveToPosition(3, 2);
-  delay(interMovementDelay);
-  MoveToPosition(1, 2);
-  delay(interMovementDelay);
-  MoveToPosition(2, 3);
-  delay(interMovementDelay);
-  MoveToPosition(3, 1);
-  delay(interMovementDelay);
-
-  MoveToPosition(1, 1);
-  MoveToPosition(2, 1);
-  MoveToPosition(3, 1);
-  delay(180000);
-  MoveToPosition(1, 2);
-  MoveToPosition(2, 2);
-  MoveToPosition(3, 2);
-  delay(180000);
 }
