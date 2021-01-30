@@ -71,6 +71,11 @@ StatusPacketSerializer statusPacketBuffer;
 
 EthernetUdp Udp;
 
+constexpr bool useStaticIP = true;
+constexpr bool setStaticIPBeforeDHCP = false;
+
+IpAddress staticIp(192, 168, 37, 2);
+
 // time in milliseconds that the ethernet command has to be "fresher" than. 1,800,000 = 30 minutes
 const int failsafeCommandTime = 1800000;
 unsigned long timeOfLastNetworkPositionCommand;
@@ -113,6 +118,12 @@ void setup() {
   // Run the setup for the ClearCore Ethernet manager.
   EthernetMgr.Setup();
   Serial.println("Ethernet Enabled");
+
+  if (useStaticIP || setStaticIPBeforeDHCP) {
+    Serial.print("Setting IP: ");
+    Serial.println(staticIp.StringValue());
+    EthernetMgr.LocalIp(staticIp);
+  }
 
   // Begin listening on the local port for UDP datagrams
   Udp.Begin(localPort);
@@ -331,7 +342,7 @@ void ethernetLoop() {
   // Update DHCP if:
   // - We don't have an address yes and it's been a short while
   // - It's been a longer while
-  if ((!hasLease && update) || haveMillisecondsPassed(lastDhcpTime, dhcpIntervalMilliseconds)) {
+  if (!useStaticIP && ((!hasLease && update) || haveMillisecondsPassed(lastDhcpTime, dhcpIntervalMilliseconds))) {
     lastDhcpTime = Milliseconds();
     // Use DHCP to configure the local IP address. This blocks for up to 1.5sec
     hasLease = EthernetMgr.DhcpBegin();
