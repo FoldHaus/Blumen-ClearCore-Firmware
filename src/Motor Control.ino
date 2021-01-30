@@ -93,7 +93,7 @@ void setup() {
   Serial.begin(baudRate);
   uint32_t timeout = 3000;
   uint32_t startTime = millis();
-  while (!Serial && millis() - startTime < timeout) {
+  while (!Serial && (uint32_t)(millis() - startTime) < timeout) {
     continue;
   }
 
