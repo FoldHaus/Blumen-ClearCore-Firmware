@@ -266,11 +266,21 @@ void MoveToPosition(int motorNum, int positionNum) {
   delay(2 + INPUT_A_B_FILTER);
 }
 
+/**
+ * Return number of milliseconds since some Time in the past.
+ *
+ * Handles overflow because of return type of this function.
+ * So, don't do this manually.
+ *
+ * @param last a value previously returned by Milliseconds()
+ */
+inline unsigned long timeSince(unsigned long last) { return Milliseconds() - last; }
+
 constexpr unsigned long updateIntervalMilliseconds = 10e3;
-auto lastUpdateTime = Milliseconds() - updateIntervalMilliseconds;
+auto lastUpdateTime = timeSince(updateIntervalMilliseconds);
 
 constexpr unsigned long dhcpIntervalMilliseconds = 1000e3;
-auto lastDhcpTime = Milliseconds() - dhcpIntervalMilliseconds;
+auto lastDhcpTime = timeSince(dhcpIntervalMilliseconds);
 
 /**
  * Check if a certain amount of time has past since some previously saved time
@@ -278,9 +288,7 @@ auto lastDhcpTime = Milliseconds() - dhcpIntervalMilliseconds;
  * @param last The last time, as returned by Milliseconds()
  * @param time The delta time, in microseconds
  */
-bool haveMillisecondsPassed(unsigned long last, unsigned long time) {
-  return (Milliseconds() - lastUpdateTime) >= time;
-}
+inline bool haveMillisecondsPassed(unsigned long last, unsigned long time) { return timeSince(last) >= time; }
 
 /**
  * Have we acquired a DHCP lease?
@@ -405,7 +413,7 @@ void loop() {
   const auto tooMuchTimeFail = haveMillisecondsPassed(lastUpdateTime, updateIntervalMilliseconds);
   if (tooMuchTimeFail) {
     Serial.print("Last ethernet command was ");
-    Serial.print((Milliseconds() - timeOfLastNetworkPositionCommand) / 60000);
+    Serial.print(timeSince(timeOfLastNetworkPositionCommand) / 60000);
     Serial.println(" minutes ago. REQUESTING CLOSING ALL FLOWERS.");
     desiredMotorPosition1 = 1;
     desiredMotorPosition2 = 1;
