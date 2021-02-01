@@ -2,6 +2,14 @@
 #include "EthernetManager.h"
 #include "EthernetUdp.h"
 
+bool msgtooMuchTimeFail = false;
+bool msgMotor1Override = false;
+bool msgMotor2Override = false;
+bool msgMotor3Override = false;
+bool msgMotor1HLFB = false;
+bool msgMotor2HLFB = false;
+bool msgMotor3HLFB = false;
+
 // The INPUT_A_B_FILTER must match the Input A, B filter setting in MSP (Advanced >> Input A, B Filtering...)
 constexpr auto INPUT_A_B_FILTER = 20;
 
@@ -164,32 +172,56 @@ void readInputsAndSetDesiredPositions() {
   // is fully open
   if (inputStatusMotor1Close) {
     desiredMotorPosition1 = 1;
-    Serial.print("MANUAL OVERRIDE Motor 1 desired position: ");
-    Serial.println(positionNumToString(desiredMotorPosition1));
+    if (!msgMotor1Override) {
+      Serial.print("MANUAL OVERRIDE Motor 1 desired position: ");
+      Serial.println(positionNumToString(desiredMotorPosition1));
+    }
+    msgMotor1Override = true;
   } else if (inputStatusMotor1Open) {
     desiredMotorPosition1 = 2;
-    Serial.print("MANUAL OVERRIDE Motor 1 desired position: ");
-    Serial.println(positionNumToString(desiredMotorPosition1));
+    if (!msgMotor1Override) {
+      Serial.print("MANUAL OVERRIDE Motor 1 desired position: ");
+      Serial.println(positionNumToString(desiredMotorPosition1));
+    }
+    msgMotor1Override = true;
+  } else {
+    msgMotor1Override = false;
   }
 
   if (inputStatusMotor2Close) {
     desiredMotorPosition2 = 1;
-    Serial.print("MANUAL OVERRIDE Motor 2 desired position: ");
-    Serial.println(positionNumToString(desiredMotorPosition2));
+    if (!msgMotor2Override) {
+      Serial.print("MANUAL OVERRIDE Motor 2 desired position: ");
+      Serial.println(positionNumToString(desiredMotorPosition2));
+    }
+    msgMotor2Override = true;
   } else if (inputStatusMotor2Open) {
     desiredMotorPosition2 = 2;
-    Serial.print("MANUAL OVERRIDE Motor 2 desired position: ");
-    Serial.println(positionNumToString(desiredMotorPosition2));
+    if (!msgMotor2Override) {
+      Serial.print("MANUAL OVERRIDE Motor 2 desired position: ");
+      Serial.println(positionNumToString(desiredMotorPosition2));
+    }
+    msgMotor2Override = true;
+  } else {
+    msgMotor2Override = false;
   }
 
   if (inputStatusMotor3Close) {
     desiredMotorPosition3 = 1;
-    Serial.print("MANUAL OVERRIDE Motor 3 desired position: ");
-    Serial.println(positionNumToString(desiredMotorPosition3));
+    if (!msgMotor3Override) {
+      Serial.print("MANUAL OVERRIDE Motor 3 desired position: ");
+      Serial.println(positionNumToString(desiredMotorPosition3));
+    }
+    msgMotor3Override = true;
   } else if (inputStatusMotor3Open) {
     desiredMotorPosition3 = 2;
-    Serial.print("MANUAL OVERRIDE Motor 3 desired position: ");
-    Serial.println(positionNumToString(desiredMotorPosition3));
+    if (!msgMotor3Override) {
+      Serial.print("MANUAL OVERRIDE Motor 3 desired position: ");
+      Serial.println(positionNumToString(desiredMotorPosition3));
+    }
+    msgMotor3Override = true;
+  } else {
+    msgMotor3Override = false;
   }
 }
 
@@ -421,14 +453,19 @@ void loop() {
   ethernetLoop();
 
   // if more time has passed than allowed since last ethernet-commanded time then CLOSE
-  const auto tooMuchTimeFail = haveMillisecondsPassed(lastUpdateTime, updateIntervalMilliseconds);
+  const auto tooMuchTimeFail = haveMillisecondsPassed(lastUpdateTime, failsafeCommandTime);
   if (tooMuchTimeFail) {
-    Serial.print("Last ethernet command was ");
-    Serial.print(timeSince(timeOfLastNetworkPositionCommand) / 60000);
-    Serial.println(" minutes ago. REQUESTING CLOSING ALL FLOWERS.");
+    if (!msgtooMuchTimeFail) {
+      Serial.print("Last ethernet command was ");
+      Serial.print(timeSince(timeOfLastNetworkPositionCommand) / 60000);
+      Serial.println(" minutes ago. REQUESTING CLOSING ALL FLOWERS.");
+      msgtooMuchTimeFail = true;
+    }
     desiredMotorPosition1 = 1;
     desiredMotorPosition2 = 1;
     desiredMotorPosition3 = 1;
+  } else {
+    msgtooMuchTimeFail = false;
   }
 
   // deliberately overwrites desired positions with any manually commanded positions if toggled
@@ -436,19 +473,31 @@ void loop() {
 
   // moves motors to desired positions if HLFB asserts (waits for homing to complete if applicable)
   if (motor1.HlfbState() != MotorDriver::HLFB_ASSERTED) {
-    Serial.println("Waiting for motor 1 HLFB...");
+    if (!msgMotor1HLFB) {
+      Serial.println("Waiting for motor 1 HLFB...");
+      msgMotor1HLFB = true;
+    }
   } else {
     MoveToPosition(1, desiredMotorPosition1);
+    msgMotor1HLFB = false;
   }
   if (motor2.HlfbState() != MotorDriver::HLFB_ASSERTED) {
-    Serial.println("Waiting for motor 2 HLFB...");
+    if (!msgMotor2HLFB) {
+      Serial.println("Waiting for motor 2 HLFB...");
+      msgMotor2HLFB = true;
+    }
   } else {
     MoveToPosition(2, desiredMotorPosition2);
+    msgMotor2HLFB = false;
   }
   if (motor3.HlfbState() != MotorDriver::HLFB_ASSERTED) {
-    Serial.println("Waiting for motor 3 HLFB...");
+    if (!msgMotor3HLFB) {
+      Serial.println("Waiting for motor 3 HLFB...");
+      msgMotor3HLFB = true;
+    }
   } else {
     MoveToPosition(3, desiredMotorPosition3);
+    msgMotor3HLFB = false;
   }
 
   // sends back status via ethernet
