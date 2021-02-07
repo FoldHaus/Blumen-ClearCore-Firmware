@@ -1,14 +1,23 @@
+/**
+ * THINGS WE NEED:
+ * - will try and open serial occasionally not just in setup. So we can watch serial output later and see what's going
+ * on. I tihnk rigth now it only does it on program setup
+ * - Are we good on ethernet/address reconnect attemps? IE can we make it so it practically never needs to be restarted?
+ * you can plug and unplug ethernet and it tries to reconnect at certain intervals? Any time I hear "oh we just had to
+ * restart it" that indicates a problem to me, potentially for a long-term install
+ * - If a motor errors out, clearcore needs to disable, wait x minutes, re-enable, and have some behavior around that
+ * sort of error condition. It does not.
+ * - new code to read a thermometer.
+ * - Status needs to be written back in terms of motor positions and possible errors and temps.
+ */
+
 #include "ClearCore.h"
 #include "EthernetManager.h"
 #include "EthernetUdp.h"
 
 bool msgtooMuchTimeFail = false;
-bool msgMotor1Override = false;
-bool msgMotor2Override = false;
-bool msgMotor3Override = false;
-bool msgMotor1HLFB = false;
-bool msgMotor2HLFB = false;
-bool msgMotor3HLFB = false;
+bool msgMotorOverride[4] = {false, false, false, false};
+bool msgMotorHLFB[4] = {false, false, false, false};
 
 // The INPUT_A_B_FILTER must match the Input A, B filter setting in MSP (Advanced >> Input A, B Filtering...)
 constexpr auto INPUT_A_B_FILTER = 20;
@@ -30,17 +39,15 @@ constexpr auto inputMotor3Close = DI7;
 constexpr auto inputMotor3Open = DI6;
 
 // The current state of the input pins
-PinStatus inputStatusMotor1Close;
-PinStatus inputStatusMotor1Open;
-PinStatus inputStatusMotor2Close;
-PinStatus inputStatusMotor2Open;
-PinStatus inputStatusMotor3Close;
-PinStatus inputStatusMotor3Open;
+// array only needs 3 spots but intitialize as 4 so that we can index positions 1, 2, 3 (arrays start at index 0)
+PinStatus inputStatusMotorClose[4];
+PinStatus inputStatusMotorOpen[4];
 
 // sets desired motor positions to closes (motorposition 1 = closed, 2 = open)
-int desiredMotorPosition1 = 1;
-int desiredMotorPosition2 = 1;
-int desiredMotorPosition3 = 1;
+// array only needs 3 spots but intitialize as 4 so that we can index positions 1, 2, 3 (arrays start at index 0)
+
+int previousDesiredMotorPosition[4] = {1, 1, 1, 1};
+int desiredMotorPosition[4] = {1, 1, 1, 1};
 
 // The local port to listen for connections on. Pick a port over 49152
 constexpr uint16_t localPort = 49443;
@@ -161,78 +168,50 @@ String positionNumToString(int positionNum) {
 
 void readInputsAndSetDesiredPositions() {
   // Read the state of the input connector.
-  inputStatusMotor1Close = digitalRead(inputMotor1Close);
-  inputStatusMotor1Open = digitalRead(inputMotor1Open);
-  inputStatusMotor2Close = digitalRead(inputMotor2Close);
-  inputStatusMotor2Open = digitalRead(inputMotor2Open);
-  inputStatusMotor3Close = digitalRead(inputMotor3Close);
-  inputStatusMotor3Open = digitalRead(inputMotor3Open);
+  inputStatusMotorClose[1] = digitalRead(inputMotor1Close);
+  inputStatusMotorOpen[1] = digitalRead(inputMotor1Open);
+  inputStatusMotorClose[2] = digitalRead(inputMotor2Close);
+  inputStatusMotorOpen[2] = digitalRead(inputMotor2Open);
+  inputStatusMotorClose[3] = digitalRead(inputMotor3Close);
+  inputStatusMotorOpen[3] = digitalRead(inputMotor3Open);
 
   // takes close and open manual inputs and sets desired motor positions based on them. Position 1 is closed, position 2
   // is fully open
-  if (inputStatusMotor1Close) {
-    desiredMotorPosition1 = 1;
-    if (!msgMotor1Override) {
-      Serial.print("MANUAL OVERRIDE Motor 1 desired position: ");
-      Serial.println(positionNumToString(desiredMotorPosition1));
-    }
-    msgMotor1Override = true;
-  } else if (inputStatusMotor1Open) {
-    desiredMotorPosition1 = 2;
-    if (!msgMotor1Override) {
-      Serial.print("MANUAL OVERRIDE Motor 1 desired position: ");
-      Serial.println(positionNumToString(desiredMotorPosition1));
-    }
-    msgMotor1Override = true;
-  } else {
-    msgMotor1Override = false;
-  }
 
-  if (inputStatusMotor2Close) {
-    desiredMotorPosition2 = 1;
-    if (!msgMotor2Override) {
-      Serial.print("MANUAL OVERRIDE Motor 2 desired position: ");
-      Serial.println(positionNumToString(desiredMotorPosition2));
+  for (int motorNum = 1; motorNum <= 3; motorNum++) {
+    if (inputStatusMotorClose[motorNum]) {
+      desiredMotorPosition[motorNum] = 1;
+      if (!msgMotorOverride[motorNum]) {
+        Serial.print("MANUAL OVERRIDE Motor 1 desired position: ");
+        Serial.println(positionNumToString(desiredMotorPosition[motorNum]));
+      }
+      msgMotorOverride[motorNum] = true;
+    } else if (inputStatusMotorOpen[motorNum]) {
+      desiredMotorPosition[motorNum] = 2;
+      if (!msgMotorOverride[motorNum]) {
+        Serial.print("MANUAL OVERRIDE Motor 1 desired position: ");
+        Serial.println(positionNumToString(desiredMotorPosition[motorNum]));
+      }
+      msgMotorOverride[motorNum] = true;
+    } else {
+      msgMotorOverride[motorNum] = false;
     }
-    msgMotor2Override = true;
-  } else if (inputStatusMotor2Open) {
-    desiredMotorPosition2 = 2;
-    if (!msgMotor2Override) {
-      Serial.print("MANUAL OVERRIDE Motor 2 desired position: ");
-      Serial.println(positionNumToString(desiredMotorPosition2));
-    }
-    msgMotor2Override = true;
-  } else {
-    msgMotor2Override = false;
-  }
-
-  if (inputStatusMotor3Close) {
-    desiredMotorPosition3 = 1;
-    if (!msgMotor3Override) {
-      Serial.print("MANUAL OVERRIDE Motor 3 desired position: ");
-      Serial.println(positionNumToString(desiredMotorPosition3));
-    }
-    msgMotor3Override = true;
-  } else if (inputStatusMotor3Open) {
-    desiredMotorPosition3 = 2;
-    if (!msgMotor3Override) {
-      Serial.print("MANUAL OVERRIDE Motor 3 desired position: ");
-      Serial.println(positionNumToString(desiredMotorPosition3));
-    }
-    msgMotor3Override = true;
-  } else {
-    msgMotor3Override = false;
   }
 }
 
 void MoveToPosition(int motorNum, int positionNum) {
-  Serial.print("Moving motor ");
-  Serial.print(motorNum);
-  Serial.print(" to position: ");
-  Serial.print(positionNum);
-  Serial.print(" (");
-  Serial.print(positionNumToString(positionNum));
-  Serial.println(")");
+
+  // if the previous motor position was different from the newly requested one, write to serial
+  if (previousDesiredMotorPosition[motorNum] != positionNum) {
+    Serial.print("Moving motor ");
+    Serial.print(motorNum);
+    Serial.print(" to position: ");
+    Serial.print(positionNum);
+    Serial.print(" (");
+    Serial.print(positionNumToString(positionNum));
+    Serial.println(")");
+    previousDesiredMotorPosition[motorNum] = positionNum;
+  }
 
   switch (positionNum) {
   case 1:
@@ -304,9 +283,9 @@ void MoveToPosition(int motorNum, int positionNum) {
     }
     break;
   }
-  // Ensures this delay is at least 2ms longer than the Input A, B filter
+  // Ensures this delay is at least 5ms longer than the Input A, B filter
   // setting in MSP
-  delay(2 + INPUT_A_B_FILTER);
+  delay(5 + INPUT_A_B_FILTER);
 }
 
 /**
@@ -350,9 +329,9 @@ void handleIncomingPacket(IncomingPacket packet) {
   Serial.print("ETHERNET Motor 3 desired position: ");
   Serial.println(positionNumToString(packet.MotorThreePos));
 
-  desiredMotorPosition1 = packet.MotorOnePos;
-  desiredMotorPosition2 = packet.MotorTwoPos;
-  desiredMotorPosition3 = packet.MotorThreePos;
+  desiredMotorPosition[1] = packet.MotorOnePos;
+  desiredMotorPosition[2] = packet.MotorTwoPos;
+  desiredMotorPosition[3] = packet.MotorThreePos;
 }
 
 void ethernetLoop() {
@@ -461,9 +440,9 @@ void loop() {
       Serial.println(" minutes ago. REQUESTING CLOSING ALL FLOWERS.");
       msgtooMuchTimeFail = true;
     }
-    desiredMotorPosition1 = 1;
-    desiredMotorPosition2 = 1;
-    desiredMotorPosition3 = 1;
+    desiredMotorPosition[1] = 1;
+    desiredMotorPosition[2] = 1;
+    desiredMotorPosition[3] = 1;
   } else {
     msgtooMuchTimeFail = false;
   }
@@ -473,31 +452,31 @@ void loop() {
 
   // moves motors to desired positions if HLFB asserts (waits for homing to complete if applicable)
   if (motor1.HlfbState() != MotorDriver::HLFB_ASSERTED) {
-    if (!msgMotor1HLFB) {
+    if (!msgMotorHLFB[1]) {
       Serial.println("Waiting for motor 1 HLFB...");
-      msgMotor1HLFB = true;
+      msgMotorHLFB[1] = true;
     }
   } else {
-    MoveToPosition(1, desiredMotorPosition1);
-    msgMotor1HLFB = false;
+    MoveToPosition(1, desiredMotorPosition[1]);
+    msgMotorHLFB[1] = false;
   }
   if (motor2.HlfbState() != MotorDriver::HLFB_ASSERTED) {
-    if (!msgMotor2HLFB) {
+    if (!msgMotorHLFB[2]) {
       Serial.println("Waiting for motor 2 HLFB...");
-      msgMotor2HLFB = true;
+      msgMotorHLFB[2] = true;
     }
   } else {
-    MoveToPosition(2, desiredMotorPosition2);
-    msgMotor2HLFB = false;
+    MoveToPosition(2, desiredMotorPosition[2]);
+    msgMotorHLFB[2] = false;
   }
   if (motor3.HlfbState() != MotorDriver::HLFB_ASSERTED) {
-    if (!msgMotor3HLFB) {
+    if (!msgMotorHLFB[3]) {
       Serial.println("Waiting for motor 3 HLFB...");
-      msgMotor3HLFB = true;
+      msgMotorHLFB[3] = true;
     }
   } else {
-    MoveToPosition(3, desiredMotorPosition3);
-    msgMotor3HLFB = false;
+    MoveToPosition(3, desiredMotorPosition[3]);
+    msgMotorHLFB[3] = false;
   }
 
   // sends back status via ethernet
