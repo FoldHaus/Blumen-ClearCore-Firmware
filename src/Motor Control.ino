@@ -155,7 +155,7 @@ IpAddress staticIp(192, 168, 37, 2);
 
 // time in milliseconds that the ethernet command has to be "fresher" than
 const Timestamp failsafeCommandTime = 30_minutes;
-unsigned long timeOfLastNetworkPositionCommand;
+Timestamp timeOfLastNetworkPositionCommand;
 
 void setup() {
   // Sets all motor connectors to the correct mode for Absolute Position mode
@@ -398,8 +398,8 @@ void handleIncomingPacket(IncomingPacket packet) {
   lastUpdateTime = Milliseconds();
 }
 
-constexpr unsigned long updateIntervalMilliseconds = 10_seconds;
-constexpr unsigned long dhcpIntervalMilliseconds = 1000_seconds;
+constexpr Timestamp updateIntervalMilliseconds = 10_seconds;
+constexpr Timestamp dhcpIntervalMilliseconds = 1000_seconds;
 
 /**
  * Manage ethernet status
