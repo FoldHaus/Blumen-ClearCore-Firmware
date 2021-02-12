@@ -49,8 +49,14 @@ PinStatus inputStatusMotorOpen[4];
 int previousDesiredMotorPosition[4] = {1, 1, 1, 1};
 int desiredMotorPosition[4] = {1, 1, 1, 1};
 
-// The local port to listen for connections on. Pick a port over 49152
-constexpr uint16_t localPort = 49443;
+// The local port to listen for connections on
+constexpr uint16_t localPort = 37373;
+
+// IANA specification of registered port range
+constexpr bool isRegisteredPort(uint16_t port) { return port >= 0x400 && port < 0xC000; }
+
+// Code checks itself
+static_assert(isRegisteredPort(localPort), "Chosen port is in IANA Registered Port range");
 
 typedef uint8_t u8;
 typedef uint16_t u16;
