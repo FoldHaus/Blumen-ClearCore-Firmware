@@ -361,6 +361,8 @@ void ethernetLoop() {
   EthernetMgr.Refresh();
 
   const float secondsSinceUpdate = ((float)(signed long)(timeSince(lastUpdateTime))) / 1_seconds;
+
+  // Write down last local check time
   if (update) {
     lastUpdateTime = Milliseconds();
   }
@@ -399,7 +401,7 @@ void ethernetLoop() {
     Serial.println(Udp.RemotePort());
 
     // Read the packet.
-    int32_t bytesRead = Udp.PacketRead(incomingPacketBuffer.raw, sizeof(incomingPacketBuffer));
+    const unsigned int bytesRead = Udp.PacketRead(incomingPacketBuffer.raw, sizeof(incomingPacketBuffer));
     Serial.print("Number of bytes read from packet: ");
     Serial.println(bytesRead);
     Serial.print("Packet contents:");
@@ -455,6 +457,7 @@ void loop() {
 
   // if more time has passed than allowed since last ethernet-commanded time then CLOSE
   const auto tooMuchTimeFail = haveMillisecondsPassed(lastUpdateTime, failsafeCommandTime);
+
   if (tooMuchTimeFail) {
     if (!msgtooMuchTimeFail) {
       Serial.print("Last ethernet command was ");
@@ -501,6 +504,6 @@ void loop() {
     msgMotorHLFB[3] = false;
   }
 
-  // sends back status via ethernet
+  // Prepare status for sending back to host
   updateStatusLoop();
 }
