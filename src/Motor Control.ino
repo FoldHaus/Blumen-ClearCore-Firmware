@@ -413,9 +413,8 @@ void ethernetLoop() {
   // Keep the connection alive.
   EthernetMgr.Refresh();
 
-  const float secondsSinceUpdate = ((float)(signed long)(timeSince(lastUpdateTime))) / 1_seconds;
   debug("Seconds since last Ethernet status check");
-  debugln(secondsSinceUpdate);
+  debugln(((signed int)(timeSince(lastUpdateTime))) / 1_seconds);
 
   // Should we update status of ethernet
   const bool update = haveMillisecondsPassed(lastUpdateTime, updateIntervalMilliseconds) || printDebug;
