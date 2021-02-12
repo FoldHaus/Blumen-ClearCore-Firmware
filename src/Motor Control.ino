@@ -89,10 +89,19 @@ EthernetUdp Udp;
 constexpr bool useStaticIP = true;
 constexpr bool setStaticIPBeforeDHCP = false;
 
+/// Allow using human readable units
+
+inline static constexpr const Timestamp operator"" _seconds(unsigned long long const x) { return x * 1000; }
+inline static constexpr const Timestamp operator"" _seconds(long double const x) { return x * 1000; }
+inline static constexpr const Timestamp operator"" _minutes(unsigned long long const x) { return x * 60_seconds; }
+inline static constexpr const Timestamp operator"" _minutes(long double const x) { return x * 60_seconds; }
+inline static constexpr const Timestamp operator"" _hours(unsigned long long const x) { return x * 60_minutes; }
+inline static constexpr const Timestamp operator"" _hours(long double const x) { return x * 60_minutes; }
+
 IpAddress staticIp(192, 168, 37, 2);
 
-// time in milliseconds that the ethernet command has to be "fresher" than. 1,800,000 = 30 minutes
-const int failsafeCommandTime = 1800000;
+// time in milliseconds that the ethernet command has to be "fresher" than
+const Timestamp failsafeCommandTime = 30_minutes;
 unsigned long timeOfLastNetworkPositionCommand;
 
 void setup() {
@@ -111,9 +120,9 @@ void setup() {
 
   // Set up serial communication at a baud rate of 9600 bps then wait up to 3 seconds for a port to open.
   Serial.begin(baudRate);
-  uint32_t timeout = 3000;
-  uint32_t startTime = millis();
-  while (!Serial && (uint32_t)(millis() - startTime) < timeout) {
+  Timestamp timeout = 3_seconds;
+  Timestamp startTime = Milliseconds();
+  while (!Serial && haveMillisecondsPassed(startTime, timeout)) {
     continue;
   }
 
@@ -288,6 +297,9 @@ void MoveToPosition(int motorNum, int positionNum) {
   delay(5 + INPUT_A_B_FILTER);
 }
 
+// Create a time for Time to be used on Time related operations
+typedef uint32_t Timestamp;
+
 /**
  * Return number of milliseconds since some Time in the past.
  *
@@ -296,7 +308,7 @@ void MoveToPosition(int motorNum, int positionNum) {
  *
  * @param last a value previously returned by Milliseconds()
  */
-inline unsigned long timeSince(unsigned long last) { return Milliseconds() - last; }
+inline Timestamp timeSince(Timestamp last) { return Milliseconds() - last; }
 
 constexpr unsigned long updateIntervalMilliseconds = 10e3;
 auto lastUpdateTime = timeSince(updateIntervalMilliseconds);
@@ -310,7 +322,7 @@ auto lastDhcpTime = timeSince(dhcpIntervalMilliseconds);
  * @param last The last time, as returned by Milliseconds()
  * @param time The delta time, in microseconds
  */
-inline bool haveMillisecondsPassed(unsigned long last, unsigned long time) { return timeSince(last) >= time; }
+inline bool haveMillisecondsPassed(Timestamp last, Timestamp time) { return timeSince(last) >= time; }
 
 /**
  * Have we acquired a DHCP lease?
@@ -436,7 +448,7 @@ void loop() {
   if (tooMuchTimeFail) {
     if (!msgtooMuchTimeFail) {
       Serial.print("Last ethernet command was ");
-      Serial.print(timeSince(timeOfLastNetworkPositionCommand) / 60000);
+      Serial.print(timeSince(timeOfLastNetworkPositionCommand) / 1_minutes);
       Serial.println(" minutes ago. REQUESTING CLOSING ALL FLOWERS.");
       msgtooMuchTimeFail = true;
     }
