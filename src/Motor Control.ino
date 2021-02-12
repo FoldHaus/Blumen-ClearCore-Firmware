@@ -310,12 +310,6 @@ typedef uint32_t Timestamp;
  */
 inline Timestamp timeSince(Timestamp last) { return Milliseconds() - last; }
 
-constexpr unsigned long updateIntervalMilliseconds = 10e3;
-auto lastUpdateTime = timeSince(updateIntervalMilliseconds);
-
-constexpr unsigned long dhcpIntervalMilliseconds = 1000e3;
-auto lastDhcpTime = timeSince(dhcpIntervalMilliseconds);
-
 /**
  * Check if a certain amount of time has past since some previously saved time
  *
@@ -328,6 +322,9 @@ inline bool haveMillisecondsPassed(Timestamp last, Timestamp time) { return time
  * Have we acquired a DHCP lease?
  */
 bool hasLease = false;
+
+// The timestamp from when we last received a command
+Timestamp lastUpdateTime = 0;
 
 /**
  * Function called by UDP datagram handler. Do stuff with incoming packet.
@@ -344,15 +341,28 @@ void handleIncomingPacket(IncomingPacket packet) {
   desiredMotorPosition[1] = packet.MotorOnePos;
   desiredMotorPosition[2] = packet.MotorTwoPos;
   desiredMotorPosition[3] = packet.MotorThreePos;
+
+  lastUpdateTime = Milliseconds();
 }
 
+constexpr unsigned long updateIntervalMilliseconds = 10_seconds;
+constexpr unsigned long dhcpIntervalMilliseconds = 1000_seconds;
+
+/**
+ * Manage ethernet status
+ */
 void ethernetLoop() {
+  // Last time that we've checked for updated ethernet status
+  static Timestamp lastUpdateTime = timeSince(updateIntervalMilliseconds);
+  // Last time that we've checked for DHCP address
+  static Timestamp lastDhcpTime = timeSince(dhcpIntervalMilliseconds);
+
   // Keep the connection alive.
   EthernetMgr.Refresh();
 
-  const auto update = haveMillisecondsPassed(lastUpdateTime, updateIntervalMilliseconds);
+  const float secondsSinceUpdate = ((float)(signed long)(timeSince(lastUpdateTime))) / 1_seconds;
   if (update) {
-    lastUpdateTime += updateIntervalMilliseconds;
+    lastUpdateTime = Milliseconds();
   }
 
   if (!EthernetMgr.PhyLinkActive()) {
