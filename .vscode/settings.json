@@ -4,5 +4,13 @@
   "C_Cpp.intelliSenseEngineFallback": "Disabled",
   "files.exclude": {
     "*/**/.vscode": true
-  }
+  },
+  "cSpell.words": [
+    "DEASSERTED",
+    "EVSYS",
+    "HLFB",
+    "debugln",
+    "gpio",
+    "println"
+  ]
 }

@@ -1,7 +1,7 @@
 /**
  * THINGS WE NEED:
  * - will try and open serial occasionally not just in setup. So we can watch serial output later and see what's going
- * on. I tihnk rigth now it only does it on program setup
+ * on. I think right now it only does it on program setup
  * - Are we good on ethernet/address reconnect attemps? IE can we make it so it practically never needs to be restarted?
  * you can plug and unplug ethernet and it tries to reconnect at certain intervals? Any time I hear "oh we just had to
  * restart it" that indicates a problem to me, potentially for a long-term install
@@ -39,12 +39,12 @@ constexpr auto inputMotor3Close = DI7;
 constexpr auto inputMotor3Open = DI6;
 
 // The current state of the input pins
-// array only needs 3 spots but intitialize as 4 so that we can index positions 1, 2, 3 (arrays start at index 0)
+// array only needs 3 spots but initialize as 4 so that we can index positions 1, 2, 3 (arrays start at index 0)
 PinStatus inputStatusMotorClose[4];
 PinStatus inputStatusMotorOpen[4];
 
 // sets desired motor positions to closes (motorposition 1 = closed, 2 = open)
-// array only needs 3 spots but intitialize as 4 so that we can index positions 1, 2, 3 (arrays start at index 0)
+// array only needs 3 spots but initialize as 4 so that we can index positions 1, 2, 3 (arrays start at index 0)
 
 int previousDesiredMotorPosition[4] = {1, 1, 1, 1};
 int desiredMotorPosition[4] = {1, 1, 1, 1};
