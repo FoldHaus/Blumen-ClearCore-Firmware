@@ -89,6 +89,59 @@ EthernetUdp Udp;
 constexpr bool useStaticIP = true;
 constexpr bool setStaticIPBeforeDHCP = false;
 
+// Flag that says we should print status
+unsigned int printDebug = 0;
+
+/**
+ * Run at the start of main loop to possibly enable debugging for this run through
+ */
+void handleDebug() {
+  if (printDebug) {
+    printDebug--;
+    if (!printDebug) {
+      Serial.println("Stopping debugging");
+    } else {
+      Serial.print("Start of loop. Debugging ");
+      Serial.print(printDebug);
+      Serial.println(" times.");
+    }
+  }
+
+  if (!Serial.available())
+    return;
+
+  const auto incomingChar = Serial.read();
+
+  // Enable debug this loop if we're received a "D" via serial.
+  switch (incomingChar) {
+  case 'd':
+    printDebug++;
+    break;
+  case 'D':
+    printDebug += 10;
+    break;
+  default:
+    Serial.print("Unhandled character: 0x");
+    Serial.println(incomingChar, HEX);
+    break;
+  case '\r':
+  case '\n':
+    break;
+  }
+}
+
+// Print some value to the serial console, iff printing of debug statements has been turned on.
+template <class T> void debug(T value) {
+  if (printDebug)
+    Serial.print(value);
+}
+
+// Print some value to the serial console, iff printing of debug statements has been turned on.
+template <class T> void debugln(T value) {
+  if (printDebug)
+    Serial.println(value);
+}
+
 /// Allow using human readable units
 
 inline static constexpr const Timestamp operator"" _seconds(unsigned long long const x) { return x * 1000; }
@@ -361,6 +414,11 @@ void ethernetLoop() {
   EthernetMgr.Refresh();
 
   const float secondsSinceUpdate = ((float)(signed long)(timeSince(lastUpdateTime))) / 1_seconds;
+  debug("Seconds since last Ethernet status check");
+  debugln(secondsSinceUpdate);
+
+  // Should we update status of ethernet
+  const bool update = haveMillisecondsPassed(lastUpdateTime, updateIntervalMilliseconds) || printDebug;
 
   // Write down last local check time
   if (update) {
@@ -373,6 +431,10 @@ void ethernetLoop() {
     }
     return;
   }
+
+  const float minutesSinceDHCPUpdate = ((signed long)(timeSince(lastDhcpTime))) / 1_minutes;
+  debug("Minutes since last Ethernet status check");
+  debugln(minutesSinceDHCPUpdate);
 
   // Update DHCP if:
   // - We don't have an address yes and it's been a short while
@@ -451,9 +513,16 @@ void updateStatusLoop() {
 }
 
 void loop() {
+  handleDebug();
 
   // reads packet through ethernet and sets desiredmotorpositions via 'handleIncomingPacket' function.
   ethernetLoop();
+
+  // Print some debug info (when requested)
+  if (printDebug) {
+    Serial.print("Seconds since successful update from host: ");
+    Serial.println(((float)timeSince(lastUpdateTime)) / 1_seconds);
+  }
 
   // if more time has passed than allowed since last ethernet-commanded time then CLOSE
   const auto tooMuchTimeFail = haveMillisecondsPassed(lastUpdateTime, failsafeCommandTime);
