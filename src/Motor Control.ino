@@ -603,7 +603,7 @@ void loop() {
   // Print some debug info (when requested)
   if (printDebug) {
     Serial.print("Seconds since successful update from host: ");
-    Serial.println(((float)timeSince(lastUpdateTime)) / 1_seconds);
+    Serial.println(((float)timeSince(lastUpdateTime)) / 1_seconds, 1);
   }
 
   // if more time has passed than allowed since last ethernet-commanded time then CLOSE
@@ -612,7 +612,7 @@ void loop() {
   if (tooMuchTimeFail) {
     if (!msgtooMuchTimeFail) {
       Serial.print("Last ethernet command was ");
-      Serial.print(timeSince(timeOfLastNetworkPositionCommand) / 1_minutes);
+      Serial.print((float)timeSince(timeOfLastNetworkPositionCommand) / 1_minutes, 1);
       Serial.println(" minutes ago. REQUESTING CLOSING ALL FLOWERS.");
       msgtooMuchTimeFail = true;
     }
