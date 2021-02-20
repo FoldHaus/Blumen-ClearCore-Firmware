@@ -155,6 +155,9 @@ template <class T> void debugln(T value) {
     Serial.println(value);
 }
 
+// Create a time for Time to be used on Time related operations
+typedef uint32_t Timestamp;
+
 /// Allow using human readable units
 
 inline static constexpr const Timestamp operator"" _seconds(unsigned long long const x) { return x * 1000; }
@@ -362,9 +365,6 @@ void MoveToPosition(int motorNum, int positionNum) {
   // setting in MSP
   delay(5 + INPUT_A_B_FILTER);
 }
-
-// Create a time for Time to be used on Time related operations
-typedef uint32_t Timestamp;
 
 /**
  * Return number of milliseconds since some Time in the past.
