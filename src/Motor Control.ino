@@ -14,6 +14,7 @@
 #include "ClearCore.h"
 #include "EthernetManager.h"
 #include "EthernetUdp.h"
+#include <DS18B20.h>
 
 bool msgtooMuchTimeFail = false;
 bool msgMotorOverride[4] = {false, false, false, false};
@@ -37,6 +38,12 @@ constexpr auto inputMotor2Close = A9;
 constexpr auto inputMotor2Open = DI8;
 constexpr auto inputMotor3Close = DI7;
 constexpr auto inputMotor3Open = DI6;
+
+// @Jesse, please set this to match hardware
+constexpr auto OneWirePin = IO5;
+
+// Our 1-wire bus
+DS18B20 ds(OneWirePin);
 
 // The current state of the input pins
 // array only needs 3 spots but initialize as 4 so that we can index positions 1, 2, 3 (arrays start at index 0)
@@ -517,8 +524,78 @@ void updateStatusLoop() {
   statusPacketBuffer.packet.MotorThreeStatus = 89;
 }
 
+// Only read one sensor every loop, as opposed to all
+constexpr bool checkOnlyOneSensorPerLoop = true;
+
+void doTempSensors() {
+  if (printDebug) {
+    Serial.print("Detected 1-Wire devices: ");
+    Serial.println(ds.getNumberOfDevices());
+  }
+
+  while (ds.selectNext()) {
+    switch (ds.getFamilyCode()) {
+    case MODEL_DS18S20:
+      Serial.println("Model: DS18S20/DS1820");
+      break;
+    case MODEL_DS1822:
+      Serial.println("Model: DS1822");
+      break;
+    case MODEL_DS18B20:
+      Serial.println("Model: DS18B20");
+      break;
+    default:
+      Serial.println("Unrecognized Device");
+      break;
+    }
+
+    uint8_t address[8];
+    ds.getAddress(address);
+
+    if (printDebug) {
+      Serial.print("Address:");
+      for (unsigned int i = 0; i < sizeof(address); i++) {
+        Serial.print(" ");
+        Serial.print(address[i]);
+      }
+      Serial.println();
+
+      Serial.print("Resolution: ");
+      Serial.println(ds.getResolution());
+
+      Serial.print("Power Mode: ");
+      if (ds.getPowerMode()) {
+        Serial.println("External");
+      } else {
+        Serial.println("Parasite");
+      }
+    }
+
+    const auto tempF = ds.getTempF();
+    // TODO: Store `tempF` somewhere so that we can report all the temps back to weatherman
+
+    if (printDebug) {
+      Serial.print("Temperature: ");
+      Serial.print(ds.getTempC(), 2);
+      Serial.print(" C / ");
+      Serial.print(tempF, 1);
+      Serial.println(" F");
+      Serial.println();
+    }
+
+    // If debugging, do all the sensors
+    if (printDebug)
+      continue;
+    // If configured, check only one of the sensors every loop, instead of all of them.
+    if (checkOnlyOneSensorPerLoop)
+      break;
+  }
+}
+
 void loop() {
   handleDebug();
+
+  doTempSensors();
 
   // reads packet through ethernet and sets desiredmotorpositions via 'handleIncomingPacket' function.
   ethernetLoop();
