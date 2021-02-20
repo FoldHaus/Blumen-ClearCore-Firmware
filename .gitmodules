@@ -4,3 +4,9 @@
 [submodule "ClearCore-Arduino-wrapper"]
 	path = ClearCore-Arduino-wrapper
 	url = https://github.com/Teknic-Inc/ClearCore-Arduino-wrapper.git
+[submodule "DS18B20"]
+	path = DS18B20
+	url = https://github.com/matmunk/DS18B20.git
+[submodule "OneWire"]
+	path = OneWire
+	url = https://github.com/PaulStoffregen/OneWire.git
