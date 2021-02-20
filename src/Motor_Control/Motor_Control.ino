@@ -14,6 +14,7 @@
 #include "ClearCore.h"
 #include "EthernetManager.h"
 #include "EthernetUdp.h"
+#include "IncomingPacket.h"
 #include "Timestamp.h"
 #include <DS18B20.h>
 
@@ -65,15 +66,6 @@ constexpr bool isRegisteredPort(uint16_t port) { return port >= 0x400 && port < 
 
 // Code checks itself
 static_assert(isRegisteredPort(localPort), "Chosen port is in IANA Registered Port range");
-
-typedef uint8_t u8;
-typedef uint16_t u16;
-
-struct {
-  u8 MotorOnePos;
-  u8 MotorTwoPos;
-  u8 MotorThreePos;
-} typedef IncomingPacket;
 
 typedef union {
   IncomingPacket packet;
