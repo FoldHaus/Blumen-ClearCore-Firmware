@@ -427,8 +427,20 @@ void ethernetLoop() {
   // - It's been a longer while
   if (!useStaticIP && ((!hasLease && update) || haveMillisecondsPassed(lastDhcpTime, dhcpIntervalMilliseconds))) {
     lastDhcpTime = Milliseconds();
+
+    const auto mac = EthernetMgr.MacAddress();
+
+    // Print MAC Address
+    Serial.print("MAC Address:");
+    for (int i = 0; i < 6; i++) {
+      Serial.print(i ? ":" : " ");
+      Serial.print(mac[i], HEX);
+    }
+    Serial.println();
+
     // Use DHCP to configure the local IP address. This blocks for up to 1.5sec
     hasLease = EthernetMgr.DhcpBegin();
+
     if (hasLease) {
       Serial.print("DHCP successfully assigned an IP address: ");
       Serial.println(EthernetMgr.LocalIp().StringValue());
