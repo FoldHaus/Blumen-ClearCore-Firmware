@@ -400,7 +400,7 @@ void ethernetLoop() {
   // Keep the connection alive.
   EthernetMgr.Refresh();
 
-  debug("Seconds since last Ethernet status check");
+  debug("Seconds since last Ethernet status check: ");
   debugln(((signed int)(timeSince(lastUpdateTime))) / 1_seconds);
 
   // Should we update status of ethernet
@@ -419,7 +419,7 @@ void ethernetLoop() {
   }
 
   const float minutesSinceDHCPUpdate = ((signed long)(timeSince(lastDhcpTime))) / 1_minutes;
-  debug("Minutes since last Ethernet status check");
+  debug("Minutes since last Ethernet status check: ");
   debugln(minutesSinceDHCPUpdate);
 
   // Update DHCP if:
