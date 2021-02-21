@@ -85,7 +85,7 @@ StatusPacketSerializer statusPacketBuffer;
 
 EthernetUdp Udp;
 
-constexpr bool useStaticIP = true;
+constexpr bool useStaticIP = false;
 constexpr bool setStaticIPBeforeDHCP = false;
 
 // Flag that says we should print status
