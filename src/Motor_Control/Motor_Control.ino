@@ -69,6 +69,7 @@ typedef union {
 IncomingPacketSerializer incomingPacketBuffer;
 
 struct {
+  u8 PacketType;
   u8 MotorOneStatus;
   u8 MotorTwoStatus;
   u8 MotorThreeStatus;
@@ -504,6 +505,7 @@ void ethernetLoop() {
  */
 void updateStatusLoop() {
   // TODO: Real numbers for these
+  statusPacketBuffer.packet.PacketType = 2;
   statusPacketBuffer.packet.Temperature = 123;
   statusPacketBuffer.packet.MotorOneStatus = 45;
   statusPacketBuffer.packet.MotorTwoStatus = 67;
