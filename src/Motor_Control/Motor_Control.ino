@@ -186,6 +186,8 @@ void setupTemp() {
 
   Serial.println("ADC0 has expected values. Continuing with setup");
   analogSelfTest = true;
+
+  // TODO: setup ADC0 hardware for continuous free running mode
 }
 
 #undef TEST_ADC0
@@ -193,6 +195,8 @@ void setupTemp() {
 void loopTemp() {
   if (!analogSelfTest)
     return;
+
+  // TODO: Grab an internal temperature reading and do something with it
 }
 
 void setup() {
