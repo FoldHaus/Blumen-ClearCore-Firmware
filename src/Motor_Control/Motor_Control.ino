@@ -158,6 +158,8 @@ bool analogSelfTest = false;
   }
 
 void setupTemp() {
+  Serial.println("Testing ADC0 initial values consistent with not being in use");
+
   TEST(CTRLA, 0x00);
   TEST(EVCTRL, 0x00);
   TEST(INPUTCTRL, 0x00);
