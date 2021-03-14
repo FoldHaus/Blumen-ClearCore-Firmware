@@ -150,7 +150,7 @@ Timestamp timeOfLastNetworkPositionCommand;
 
 bool analogSelfTest = false;
 
-#define TEST(reg, val)                                                                                                 \
+#define TEST_ADC0(reg, val)                                                                                            \
   if (ADC0->reg != val) {                                                                                              \
     Serial.print("ADC0->"## #reg##" has unexpected value: 0b");                                                        \
     Serial.println(ADC0->reg, BIN);                                                                                    \
@@ -160,35 +160,35 @@ bool analogSelfTest = false;
 void setupTemp() {
   Serial.println("Testing ADC0 initial values consistent with not being in use");
 
-  TEST(CTRLA, 0x00);
-  TEST(EVCTRL, 0x00);
-  TEST(INPUTCTRL, 0x00);
-  TEST(CTRLB, 0x00);
-  TEST(REFCTRL, 0x00);
-  TEST(AVGCTRL, 0x00);
-  TEST(SAMPCTRL, 0x00);
-  TEST(WINLT, 0x00);
-  TEST(WINUT, 0x00);
-  TEST(GAINCORR, 0x00);
-  TEST(OFFSETCORR, 0x00);
-  TEST(SWTRIG, 0x00);
-  TEST(INTENCLR, 0x00);
-  TEST(INTENSET, 0x00);
-  TEST(INTFLAG, 0x00);
-  TEST(STATUS, 0x00);
-  TEST(SYNCBUSY, 0x00);
-  TEST(DSEQDATA, 0x00);
-  TEST(DSEQCTRL, 0x00);
-  TEST(DSEQSTAT, 0x00);
-  TEST(RESULT, 0x00);
-  TEST(RESS, 0x00);
-  TEST(CALIB, 0x00);
+  TEST_ADC0(CTRLA, 0x00);
+  TEST_ADC0(EVCTRL, 0x00);
+  TEST_ADC0(INPUTCTRL, 0x00);
+  TEST_ADC0(CTRLB, 0x00);
+  TEST_ADC0(REFCTRL, 0x00);
+  TEST_ADC0(AVGCTRL, 0x00);
+  TEST_ADC0(SAMPCTRL, 0x00);
+  TEST_ADC0(WINLT, 0x00);
+  TEST_ADC0(WINUT, 0x00);
+  TEST_ADC0(GAINCORR, 0x00);
+  TEST_ADC0(OFFSETCORR, 0x00);
+  TEST_ADC0(SWTRIG, 0x00);
+  TEST_ADC0(INTENCLR, 0x00);
+  TEST_ADC0(INTENSET, 0x00);
+  TEST_ADC0(INTFLAG, 0x00);
+  TEST_ADC0(STATUS, 0x00);
+  TEST_ADC0(SYNCBUSY, 0x00);
+  TEST_ADC0(DSEQDATA, 0x00);
+  TEST_ADC0(DSEQCTRL, 0x00);
+  TEST_ADC0(DSEQSTAT, 0x00);
+  TEST_ADC0(RESULT, 0x00);
+  TEST_ADC0(RESS, 0x00);
+  TEST_ADC0(CALIB, 0x00);
 
   Serial.println("ADC0 has expected values. Continuing with setup");
   analogSelfTest = true;
 }
 
-#undef TEST
+#undef TEST_ADC0
 
 void loopTemp() {
   if (!analogSelfTest)
