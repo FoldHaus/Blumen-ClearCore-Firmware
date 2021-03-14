@@ -148,6 +148,51 @@ IpAddress staticIp(192, 168, 37, 2);
 const Timestamp failsafeCommandTime = 30_minutes;
 Timestamp timeOfLastNetworkPositionCommand;
 
+bool analogSelfTest = false;
+
+#define TEST(reg, val)                                                                                                 \
+  if (ADC0->reg != val) {                                                                                              \
+    Serial.print("ADC0->"## #reg##" has unexpected value: 0b");                                                        \
+    Serial.println(ADC0->reg, BIN);                                                                                    \
+    return;                                                                                                            \
+  }
+
+void setupTemp() {
+  TEST(CTRLA, 0x00);
+  TEST(EVCTRL, 0x00);
+  TEST(INPUTCTRL, 0x00);
+  TEST(CTRLB, 0x00);
+  TEST(REFCTRL, 0x00);
+  TEST(AVGCTRL, 0x00);
+  TEST(SAMPCTRL, 0x00);
+  TEST(WINLT, 0x00);
+  TEST(WINUT, 0x00);
+  TEST(GAINCORR, 0x00);
+  TEST(OFFSETCORR, 0x00);
+  TEST(SWTRIG, 0x00);
+  TEST(INTENCLR, 0x00);
+  TEST(INTENSET, 0x00);
+  TEST(INTFLAG, 0x00);
+  TEST(STATUS, 0x00);
+  TEST(SYNCBUSY, 0x00);
+  TEST(DSEQDATA, 0x00);
+  TEST(DSEQCTRL, 0x00);
+  TEST(DSEQSTAT, 0x00);
+  TEST(RESULT, 0x00);
+  TEST(RESS, 0x00);
+  TEST(CALIB, 0x00);
+
+  Serial.println("ADC0 has expected values. Continuing with setup");
+  analogSelfTest = true;
+}
+
+#undef TEST
+
+void loopTemp() {
+  if (!analogSelfTest)
+    return;
+}
+
 void setup() {
   // Sets all motor connectors to the correct mode for Absolute Position mode
   MotorMgr.MotorModeSet(MotorManager::MOTOR_ALL, Connector::CPM_MODE_A_DIRECT_B_DIRECT);
@@ -182,6 +227,9 @@ void setup() {
   ConnectorA9.Mode(Connector::INPUT_DIGITAL);
   ConnectorA10.Mode(Connector::INPUT_DIGITAL);
   ConnectorA11.Mode(Connector::INPUT_DIGITAL);
+
+  // Setup internal temperature sensors
+  setupTemp();
 
   // Run the setup for the ClearCore Ethernet manager.
   EthernetMgr.Setup();
@@ -514,6 +562,8 @@ void updateStatusLoop() {
 
 void loop() {
   handleDebug();
+
+  loopTemp();
 
   // reads packet through ethernet and sets desiredmotorpositions via 'handleIncomingPacket' function.
   ethernetLoop();
