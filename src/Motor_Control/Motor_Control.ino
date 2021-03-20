@@ -158,57 +158,6 @@ const Timestamp failsafeCommandTime = 30_minutes;
 const Timestamp motorResetOnFailureTime = 10_minutes;
 Timestamp timeOfLastNetworkPositionCommand;
 
-bool analogSelfTest = false;
-
-#define TEST_ADC0(reg, val)                                                                                            \
-  if (ADC0->reg != val) {                                                                                              \
-    Serial.print("ADC0->"## #reg##" has unexpected value: 0b");                                                        \
-    Serial.println(ADC0->reg, BIN);                                                                                    \
-    return;                                                                                                            \
-  }
-
-void setupTemp() {
-  Serial.println("Testing ADC0 initial values consistent with not being in use");
-
-  TEST_ADC0(CTRLA, 0x00);
-  TEST_ADC0(EVCTRL, 0x00);
-  TEST_ADC0(INPUTCTRL, 0x00);
-  TEST_ADC0(CTRLB, 0x00);
-  TEST_ADC0(REFCTRL, 0x00);
-  TEST_ADC0(AVGCTRL, 0x00);
-  TEST_ADC0(SAMPCTRL, 0x00);
-  TEST_ADC0(WINLT, 0x00);
-  TEST_ADC0(WINUT, 0x00);
-  TEST_ADC0(GAINCORR, 0x00);
-  TEST_ADC0(OFFSETCORR, 0x00);
-  TEST_ADC0(SWTRIG, 0x00);
-  TEST_ADC0(INTENCLR, 0x00);
-  TEST_ADC0(INTENSET, 0x00);
-  TEST_ADC0(INTFLAG, 0x00);
-  TEST_ADC0(STATUS, 0x00);
-  TEST_ADC0(SYNCBUSY, 0x00);
-  TEST_ADC0(DSEQDATA, 0x00);
-  TEST_ADC0(DSEQCTRL, 0x00);
-  TEST_ADC0(DSEQSTAT, 0x00);
-  TEST_ADC0(RESULT, 0x00);
-  TEST_ADC0(RESS, 0x00);
-  TEST_ADC0(CALIB, 0x00);
-
-  Serial.println("ADC0 has expected values. Continuing with setup");
-  analogSelfTest = true;
-
-  // TODO: setup ADC0 hardware for continuous free running mode
-}
-
-#undef TEST_ADC0
-
-void loopTemp() {
-  if (!analogSelfTest)
-    return;
-
-  // TODO: Grab an internal temperature reading and do something with it
-}
-
 void setup() {
   // Sets all motor connectors to the correct mode for Absolute Position mode
   MotorMgr.MotorModeSet(MotorManager::MOTOR_ALL, Connector::CPM_MODE_A_DIRECT_B_DIRECT);
@@ -243,9 +192,6 @@ void setup() {
   ConnectorA9.Mode(Connector::INPUT_DIGITAL);
   ConnectorA10.Mode(Connector::INPUT_DIGITAL);
   ConnectorA11.Mode(Connector::INPUT_DIGITAL);
-
-  // Setup internal temperature sensors
-  setupTemp();
 
   // Run the setup for the ClearCore Ethernet manager.
   EthernetMgr.Setup();
@@ -635,8 +581,6 @@ void updateStatusLoop() {
 void loop() {
   handleDebug();
 
-  loopTemp();
-
   // reads packet through ethernet and sets desiredmotorpositions via 'handleIncomingPacket' function.
   ethernetLoop();
   // set statuses to ethernet commanded
@@ -676,6 +620,8 @@ void loop() {
 
   // moves motors to desired positions if HLFB asserts (waits for homing to complete if applicable)
   if (motor1.HlfbState() != MotorDriver::HLFB_ASSERTED) {
+    // set statuses to Error
+      statusPacketBuffer.packet.MotorOneStatus    = 3;
   // on first time of new error, mark time
       if (firstMotorError[1] == 0) {
         firstMotorError[1] = Milliseconds();
@@ -686,8 +632,6 @@ void loop() {
     if (!msgMotorHLFB[1]) {
       Serial.println("Waiting for motor 1 HLFB...");
       msgMotorHLFB[1] = true;
-      // set statuses to Error
-      statusPacketBuffer.packet.MotorOneStatus    = 3;
     }
   } else {
     MoveToPosition(1, desiredMotorPosition[1]);
@@ -695,6 +639,8 @@ void loop() {
     msgMotorHLFB[1] = false;
   }
   if (motor2.HlfbState() != MotorDriver::HLFB_ASSERTED) {
+    // set statuses to Error
+      statusPacketBuffer.packet.MotorTwoStatus    = 3;
     // on first time of new error, mark time
       if (firstMotorError[2] == 0) {
         firstMotorError[2] = Milliseconds();
@@ -705,8 +651,6 @@ void loop() {
     if (!msgMotorHLFB[2]) {
       Serial.println("Waiting for motor 2 HLFB...");
       msgMotorHLFB[2] = true;
-      // set statuses to Error
-      statusPacketBuffer.packet.MotorTwoStatus    = 3;
     }
   } else {
     MoveToPosition(2, desiredMotorPosition[2]);
@@ -714,6 +658,8 @@ void loop() {
     msgMotorHLFB[2] = false;
   }
   if (motor3.HlfbState() != MotorDriver::HLFB_ASSERTED) {
+     // set statuses to Error
+      statusPacketBuffer.packet.MotorThreeStatus    = 3;
      if (firstMotorError[3] == 0) {
         firstMotorError[3] = Milliseconds();
       } else if (haveMillisecondsPassed(firstMotorError[3], motorResetOnFailureTime)) {
@@ -723,8 +669,6 @@ void loop() {
     if (!msgMotorHLFB[3]) {
       Serial.println("Waiting for motor 3 HLFB...");
       msgMotorHLFB[3] = true;
-      // set statuses to Error
-      statusPacketBuffer.packet.MotorThreeStatus    = 3;
     }
   } else {
     MoveToPosition(3, desiredMotorPosition[3]);
