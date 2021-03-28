@@ -8,7 +8,6 @@
    - If a motor errors out, clearcore needs to disable, wait x minutes, re-enable, and have some behavior around that
    sort of error condition. It does not.
    - new code to read a thermometer.
-   - Status needs to be written back in terms of motor positions and possible errors and temps.
 */
 
 #include "ClearCore.h"
@@ -174,11 +173,19 @@ void setup() {
 
   // Set up serial communication at a baud rate of 9600 bps then wait up to 3 seconds for a port to open.
   Serial.begin(baudRate);
+  
   Timestamp timeout = 3_seconds;
   Timestamp startTime = Milliseconds();
   while (!Serial && haveMillisecondsPassed(startTime, timeout)) {
     continue;
   }
+
+//  Serial1.begin(baudRate); 
+//  while (!Serial1 ) {
+//    Serial.println("no serial 1");
+//    continue;
+//  }
+//  Serial.println("SERIAL 1 SET UP DONE");
 
   // Enables the motors; homing will begin automatically
   motor1.EnableRequest(true);
@@ -425,6 +432,8 @@ inline bool haveMillisecondsPassed(Timestamp last, Timestamp time) {
 */
 bool hasLease = false;
 
+const static u8 JANK_HANDSHAKE_FIX = 7;
+
 // The timestamp from when we last received a command
 Timestamp lastUpdateTime = 0;
 
@@ -432,19 +441,24 @@ Timestamp lastUpdateTime = 0;
    Function called by UDP datagram handler. Do stuff with incoming packet.
 */
 void handleIncomingPacket(IncomingPacket packet) {
-  Serial.println("Parsed message from ethernet:");
-  Serial.print("ETHERNET Motor 1 desired position: ");
-  Serial.println(positionNumToString(packet.MotorOnePos));
-  Serial.print("ETHERNET Motor 2 desired position: ");
-  Serial.println(positionNumToString(packet.MotorTwoPos));
-  Serial.print("ETHERNET Motor 3 desired position: ");
-  Serial.println(positionNumToString(packet.MotorThreePos));
 
-  desiredMotorPosition[1] = packet.MotorOnePos;
-  desiredMotorPosition[2] = packet.MotorTwoPos;
-  desiredMotorPosition[3] = packet.MotorThreePos;
+  if (packet.MotorOnePos != JANK_HANDSHAKE_FIX) {
+    Serial.println("Parsed message from ethernet:");
+    Serial.print("ETHERNET Motor 1 desired position: ");
+    Serial.println(positionNumToString(packet.MotorOnePos));
+    Serial.print("ETHERNET Motor 2 desired position: ");
+    Serial.println(positionNumToString(packet.MotorTwoPos));
+    Serial.print("ETHERNET Motor 3 desired position: ");
+    Serial.println(positionNumToString(packet.MotorThreePos));
 
-  lastUpdateTime = Milliseconds();
+  
+    desiredMotorPosition[1] = packet.MotorOnePos;
+    desiredMotorPosition[2] = packet.MotorTwoPos;
+    desiredMotorPosition[3] = packet.MotorThreePos;
+
+    lastUpdateTime = Milliseconds();
+  }
+  
 }
 
 constexpr Timestamp updateIntervalMilliseconds = 10_seconds;
@@ -571,7 +585,7 @@ void ethernetLoop() {
 void updateStatusLoop() {
   // TODO: Real numbers for these
   statusPacketBuffer.packet.PacketType        = 2;    // what is this?
-  statusPacketBuffer.packet.Temperature       = 123;
+  statusPacketBuffer.packet.Temperature       = 32;
   statusPacketBuffer.packet.MotorOnePosition    = desiredMotorPosition[1];
   statusPacketBuffer.packet.MotorTwoPosition    = desiredMotorPosition[2];
   statusPacketBuffer.packet.MotorThreePosition  = desiredMotorPosition[3];
@@ -579,6 +593,23 @@ void updateStatusLoop() {
 }
 
 void loop() {
+
+//  // Read the input.
+//  int input = Serial1.read();
+//  Serial.println(input);
+
+//  // If there was a valid byte read-in, print it.
+//  if (input != -1) {
+//      // Display the input character received.
+//      Serial.print("Received: ");
+//      Serial.println((input);
+//  }
+//  else {
+//     Serial.println("No data received...");
+//  }
+//  delay(1000);
+
+  
   handleDebug();
 
   // reads packet through ethernet and sets desiredmotorpositions via 'handleIncomingPacket' function.
