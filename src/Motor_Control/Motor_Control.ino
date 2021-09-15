@@ -1,15 +1,3 @@
-/**
-   THINGS WE NEED:
-   - will try and open serial occasionally not just in setup. So we can watch serial output later and see what's going
-   on. I think right now it only does it on program setup
-   - Are we good on ethernet/address reconnect attemps? IE can we make it so it practically never needs to be restarted?
-   you can plug and unplug ethernet and it tries to reconnect at certain intervals? Any time I hear "oh we just had to
-   restart it" that indicates a problem to me, potentially for a long-term install
-   - If a motor errors out, clearcore needs to disable, wait x minutes, re-enable, and have some behavior around that
-   sort of error condition. It does not.
-   - new code to read a thermometer.
-*/
-
 #include "ClearCore.h"
 #include "EthernetManager.h"
 #include "EthernetUdp.h"
@@ -20,6 +8,9 @@ bool msgtooMuchTimeFail = false;
 bool msgMotorOverride[4] = {false, false, false, false};
 bool msgMotorHLFB[4] = {false, false, false, false};
 Timestamp firstMotorError[4] = {0, 0, 0, 0};
+Timestamp TimeofLastClose[4] = {0, 0, 0, 0};
+Timestamp TimeofLastWake[4] = {0, 0, 0, 0};
+bool MotorSleeping[4] = {false, false, false, false};
 
 
 // The INPUT_A_B_FILTER must match the Input A, B filter setting in MSP (Advanced >> Input A, B Filtering...)
@@ -71,8 +62,7 @@ typedef union {
 // Buffer for holding received packets.
 IncomingPacketSerializer incomingPacketBuffer;
 
-
-//motor status legend:  0=ethernetcommanded, 1=NoSignalInTooLong, 2=ButtonCommanded, 3=Error
+// motor status legend:  0=ethernetcommanded, 1=NoSignalInTooLong, 2=ButtonCommanded, 3=Error
 struct {
   u8 PacketType;
   u8 MotorOnePosition;
@@ -155,6 +145,8 @@ IpAddress staticIp(192, 168, 37, 2);
 // time in milliseconds that the ethernet command has to be "fresher" than
 const Timestamp failsafeCommandTime = 30_minutes;
 const Timestamp motorResetOnFailureTime = 10_minutes;
+const Timestamp timeBeforeClosedFlowerSleeps = 3_minutes;
+const Timestamp timeToWake = 30_seconds;
 Timestamp timeOfLastNetworkPositionCommand;
 
 void setup() {
@@ -194,6 +186,14 @@ void setup() {
   Serial.println("Motor 2 Enabled... homing");
   motor3.EnableRequest(true);
   Serial.println("Motor 3 Enabled... homing");
+
+  // Initializes new sleep counter
+  TimeofLastClose[1] = Milliseconds();
+  TimeofLastClose[2] = Milliseconds();
+  TimeofLastClose[3] = Milliseconds();
+  TimeofLastWake[1] = Milliseconds();
+  TimeofLastWake[2] = Milliseconds();
+  TimeofLastWake[3] = Milliseconds();
 
   // Sets the 3 analog/digital inputs to input digital mode
   ConnectorA9.Mode(Connector::INPUT_DIGITAL);
@@ -238,24 +238,70 @@ String positionNumToString(int positionNum) {
 
 void resetMotor(int motorNumToReset) {
   switch (motorNumToReset) {
-    case 1:
-      motor1.EnableRequest(false);
-      Serial.println("Resetting motor 1");
-      delay(2000);
-      motor1.EnableRequest(true);
-      break;
-    case 2:
-      motor2.EnableRequest(false);
-      Serial.println("Resetting motor 2");
-      delay(2000);
-      motor2.EnableRequest(true);
-      break;   
-    case 3:
-      motor3.EnableRequest(false);
-      Serial.println("Resetting motor 3");
-      delay(2000);
-      motor3.EnableRequest(true);
-      break;
+  case 1:
+    motor1.EnableRequest(false);
+    Serial.println("Resetting motor 1");
+    delay(2000);
+    motor1.EnableRequest(true);
+    break;
+  case 2:
+    motor2.EnableRequest(false);
+    Serial.println("Resetting motor 2");
+    delay(2000);
+    motor2.EnableRequest(true);
+    break;
+  case 3:
+    motor3.EnableRequest(false);
+    Serial.println("Resetting motor 3");
+    delay(2000);
+    motor3.EnableRequest(true);
+    break;
+  }
+}
+
+void wakeMotor(int motorNumToWake) {
+  switch (motorNumToWake) {
+  case 1:
+    Serial.println("Wakeing motor 1");
+    motor1.EnableRequest(true);
+    TimeofLastWake[1] = Milliseconds();
+    delay(9000);
+    break;
+  case 2:
+    Serial.println("Wakeing motor 2");
+    motor2.EnableRequest(true);
+    TimeofLastWake[2] = Milliseconds();
+    delay(9000);
+    break;
+  case 3:
+    Serial.println("Wakeing motor 3");
+    motor3.EnableRequest(true);
+    TimeofLastWake[3] = Milliseconds();
+    delay(9000);
+    break;
+  }
+}
+
+void sleepMotor(int motorNumToSleep) {
+  switch (motorNumToSleep) {
+  case 1:
+    Serial.println("Putting to sleep motor 1");
+    motor1.EnableRequest(false);
+    statusPacketBuffer.packet.MotorOneStatus = 4;
+    delay(1000);
+    break;
+  case 2:
+    Serial.println("Putting to sleep motor 2");
+    motor2.EnableRequest(false);
+    statusPacketBuffer.packet.MotorTwoStatus = 4;
+    delay(1000);
+    break;
+  case 3:
+    Serial.println("Putting to sleep motor 3");
+    motor3.EnableRequest(false);
+    statusPacketBuffer.packet.MotorThreeStatus = 4;
+    delay(1000);
+    break;
   }
 }
 
@@ -276,15 +322,12 @@ void readInputsAndSetDesiredPositions() {
       desiredMotorPosition[motorNum] = 1;
       // set statuses to button
       switch (motorNum) {
-        case 1:
-          statusPacketBuffer.packet.MotorOneStatus    = 2;
-          break;
-        case 2:
-          statusPacketBuffer.packet.MotorTwoStatus    = 2;
-          break;
-        case 3:
-          statusPacketBuffer.packet.MotorThreeStatus  = 2;
-          break;
+      case 1:
+        statusPacketBuffer.packet.MotorOneStatus = 2;
+      case 2:
+        statusPacketBuffer.packet.MotorTwoStatus = 2;
+      case 3:
+        statusPacketBuffer.packet.MotorThreeStatus = 2;
       }
       if (!msgMotorOverride[motorNum]) {
         Serial.print("MANUAL OVERRIDE Motor 1 desired position: ");
@@ -295,15 +338,12 @@ void readInputsAndSetDesiredPositions() {
       desiredMotorPosition[motorNum] = 2;
       // set statuses to button
       switch (motorNum) {
-        case 1:
-          statusPacketBuffer.packet.MotorOneStatus    = 2;
-          break;
-        case 2:
-          statusPacketBuffer.packet.MotorTwoStatus    = 2;
-          break;
-        case 3:
-          statusPacketBuffer.packet.MotorThreeStatus  = 2;
-          break;
+      case 1:
+        statusPacketBuffer.packet.MotorOneStatus = 2;
+      case 2:
+        statusPacketBuffer.packet.MotorTwoStatus = 2;
+      case 3:
+        statusPacketBuffer.packet.MotorThreeStatus = 2;
       }
       if (!msgMotorOverride[motorNum]) {
         Serial.print("MANUAL OVERRIDE Motor 1 desired position: ");
@@ -317,9 +357,17 @@ void readInputsAndSetDesiredPositions() {
 }
 
 void MoveToPosition(int motorNum, int positionNum) {
-
   // if the previous motor position was different from the newly requested one, write to serial
   if (previousDesiredMotorPosition[motorNum] != positionNum) {
+
+    // if it's a new position commanded AND that position is CLOSE
+    if (positionNum == 1) {
+      TimeofLastClose[motorNum] = Milliseconds();
+    } else { // if it's a new position and that position is NOT close then you can't sleep
+      MotorSleeping[motorNum] = false;
+      wakeMotor(motorNum);
+    }
+
     Serial.print("Moving motor ");
     Serial.print(motorNum);
     Serial.print(" to position: ");
@@ -328,6 +376,17 @@ void MoveToPosition(int motorNum, int positionNum) {
     Serial.print(positionNumToString(positionNum));
     Serial.println(")");
     previousDesiredMotorPosition[motorNum] = positionNum;
+
+  } else { // if this is not the first loop with this motor position, IE it was commanded here in the last loop
+    if (positionNum == 1) { // and that position is "closed"
+      if (haveMillisecondsPassed(TimeofLastClose[motorNum],
+                                 timeBeforeClosedFlowerSleeps)) { // and it's been at least timeBeforeClosedFlowerSleeps
+                                                                  // time since it was commanded closed
+        MotorSleeping[motorNum] = true;
+        // disable said motor! (put to sleep)
+        sleepMotor(motorNum);
+      }
+    }
   }
 
   switch (positionNum) {
@@ -442,23 +501,28 @@ Timestamp lastUpdateTime = 0;
 */
 void handleIncomingPacket(IncomingPacket packet) {
 
-  if (packet.MotorOnePos != JANK_HANDSHAKE_FIX) {
-    Serial.println("Parsed message from ethernet:");
-    Serial.print("ETHERNET Motor 1 desired position: ");
-    Serial.println(positionNumToString(packet.MotorOnePos));
-    Serial.print("ETHERNET Motor 2 desired position: ");
-    Serial.println(positionNumToString(packet.MotorTwoPos));
-    Serial.print("ETHERNET Motor 3 desired position: ");
-    Serial.println(positionNumToString(packet.MotorThreePos));
-
-  
+  if ((packet.MotorOnePos != 1) && (packet.MotorOnePos != 2)) {
+    desiredMotorPosition[1] = 1;
+    Serial.println("ETHERNET Motor 1 desired position invalid. Closing.");
+  } else {
     desiredMotorPosition[1] = packet.MotorOnePos;
-    desiredMotorPosition[2] = packet.MotorTwoPos;
-    desiredMotorPosition[3] = packet.MotorThreePos;
-
-    lastUpdateTime = Milliseconds();
   }
-  
+
+  if ((packet.MotorTwoPos != 1) && (packet.MotorTwoPos != 2)) {
+    desiredMotorPosition[2] = 1;
+    Serial.println("ETHERNET Motor 2 desired position invalid. Closing.");
+  } else {
+    desiredMotorPosition[2] = packet.MotorOnePos;
+  }
+
+  if ((packet.MotorThreePos != 1) && (packet.MotorThreePos != 2)) {
+    desiredMotorPosition[3] = 1;
+    Serial.println("ETHERNET Motor 3 desired position invalid. Closing.");
+  } else {
+    desiredMotorPosition[3] = packet.MotorThreePos;
+  }
+
+  lastUpdateTime = Milliseconds();
 }
 
 constexpr Timestamp updateIntervalMilliseconds = 10_seconds;
@@ -584,12 +648,11 @@ void ethernetLoop() {
 */
 void updateStatusLoop() {
   // TODO: Real numbers for these
-  statusPacketBuffer.packet.PacketType        = 2;    // what is this?
-  statusPacketBuffer.packet.Temperature       = 32;
-  statusPacketBuffer.packet.MotorOnePosition    = desiredMotorPosition[1];
-  statusPacketBuffer.packet.MotorTwoPosition    = desiredMotorPosition[2];
-  statusPacketBuffer.packet.MotorThreePosition  = desiredMotorPosition[3];
-  
+  statusPacketBuffer.packet.PacketType = 2; // what is this?
+  statusPacketBuffer.packet.Temperature = 11;
+  statusPacketBuffer.packet.MotorOnePosition = desiredMotorPosition[1];
+  statusPacketBuffer.packet.MotorTwoPosition = desiredMotorPosition[2];
+  statusPacketBuffer.packet.MotorThreePosition = desiredMotorPosition[3];
 }
 
 void loop() {
@@ -615,9 +678,9 @@ void loop() {
   // reads packet through ethernet and sets desiredmotorpositions via 'handleIncomingPacket' function.
   ethernetLoop();
   // set statuses to ethernet commanded
-  statusPacketBuffer.packet.MotorOneStatus    = 0;
-  statusPacketBuffer.packet.MotorTwoStatus    = 0;
-  statusPacketBuffer.packet.MotorThreeStatus  = 0;
+  statusPacketBuffer.packet.MotorOneStatus = 0;
+  statusPacketBuffer.packet.MotorTwoStatus = 0;
+  statusPacketBuffer.packet.MotorThreeStatus = 0;
 
   // Print some debug info (when requested)
   if (printDebug) {
@@ -639,9 +702,9 @@ void loop() {
     desiredMotorPosition[2] = 1;
     desiredMotorPosition[3] = 1;
     // set statuses to no signal in too long
-    statusPacketBuffer.packet.MotorOneStatus    = 1;
-    statusPacketBuffer.packet.MotorTwoStatus    = 1;
-    statusPacketBuffer.packet.MotorThreeStatus  = 1;
+    statusPacketBuffer.packet.MotorOneStatus = 1;
+    statusPacketBuffer.packet.MotorTwoStatus = 1;
+    statusPacketBuffer.packet.MotorThreeStatus = 1;
   } else {
     msgtooMuchTimeFail = false;
   }
@@ -649,57 +712,61 @@ void loop() {
   // deliberately overwrites desired positions with any manually commanded positions if toggled
   readInputsAndSetDesiredPositions();
 
-  // moves motors to desired positions if HLFB asserts (waits for homing to complete if applicable)
-  if (motor1.HlfbState() != MotorDriver::HLFB_ASSERTED) {
-    // set statuses to Error
-      statusPacketBuffer.packet.MotorOneStatus    = 3;
-  // on first time of new error, mark time
-      if (firstMotorError[1] == 0) {
-        firstMotorError[1] = Milliseconds();
-      } else if (haveMillisecondsPassed(firstMotorError[1], motorResetOnFailureTime)) {
-        firstMotorError[1] = 0;
-        resetMotor(1);
-      }
+  // moves motors to desired positions if HLFB asserts (waits for homing to complete if applicable) IF THE MOTOR ISNT
+  // SLEEPING
+  if ((motor1.HlfbState() != MotorDriver::HLFB_ASSERTED) && (MotorSleeping[1] == false) &&
+      haveMillisecondsPassed(TimeofLastWake[1], timeToWake)) {
+    // on first time of new error, mark time
+    if (firstMotorError[1] == 0) {
+      firstMotorError[1] = Milliseconds();
+    } else if (haveMillisecondsPassed(firstMotorError[1], motorResetOnFailureTime)) {
+      firstMotorError[1] = 0;
+      resetMotor(1);
+    }
     if (!msgMotorHLFB[1]) {
       Serial.println("Waiting for motor 1 HLFB...");
       msgMotorHLFB[1] = true;
+      // set statuses to Error
+      statusPacketBuffer.packet.MotorOneStatus = 3;
     }
   } else {
     MoveToPosition(1, desiredMotorPosition[1]);
     firstMotorError[1] = 0;
     msgMotorHLFB[1] = false;
   }
-  if (motor2.HlfbState() != MotorDriver::HLFB_ASSERTED) {
-    // set statuses to Error
-      statusPacketBuffer.packet.MotorTwoStatus    = 3;
+  if ((motor2.HlfbState() != MotorDriver::HLFB_ASSERTED) && (MotorSleeping[2] == false) &&
+      haveMillisecondsPassed(TimeofLastWake[2], timeToWake)) {
     // on first time of new error, mark time
-      if (firstMotorError[2] == 0) {
-        firstMotorError[2] = Milliseconds();
-      } else if (haveMillisecondsPassed(firstMotorError[2], motorResetOnFailureTime)) {
-        firstMotorError[2] = 0;
-        resetMotor(2);
-      }
+    if (firstMotorError[2] == 0) {
+      firstMotorError[2] = Milliseconds();
+    } else if (haveMillisecondsPassed(firstMotorError[2], motorResetOnFailureTime)) {
+      firstMotorError[2] = 0;
+      resetMotor(2);
+    }
     if (!msgMotorHLFB[2]) {
       Serial.println("Waiting for motor 2 HLFB...");
       msgMotorHLFB[2] = true;
+      // set statuses to Error
+      statusPacketBuffer.packet.MotorTwoStatus = 3;
     }
   } else {
     MoveToPosition(2, desiredMotorPosition[2]);
     firstMotorError[2] = 0;
     msgMotorHLFB[2] = false;
   }
-  if (motor3.HlfbState() != MotorDriver::HLFB_ASSERTED) {
-     // set statuses to Error
-      statusPacketBuffer.packet.MotorThreeStatus    = 3;
-     if (firstMotorError[3] == 0) {
-        firstMotorError[3] = Milliseconds();
-      } else if (haveMillisecondsPassed(firstMotorError[3], motorResetOnFailureTime)) {
-        firstMotorError[3] = 0;
-        resetMotor(3);
-      }
+  if ((motor3.HlfbState() != MotorDriver::HLFB_ASSERTED) && (MotorSleeping[3] == false) &&
+      haveMillisecondsPassed(TimeofLastWake[3], timeToWake)) {
+    if (firstMotorError[3] == 0) {
+      firstMotorError[3] = Milliseconds();
+    } else if (haveMillisecondsPassed(firstMotorError[3], motorResetOnFailureTime)) {
+      firstMotorError[3] = 0;
+      resetMotor(3);
+    }
     if (!msgMotorHLFB[3]) {
       Serial.println("Waiting for motor 3 HLFB...");
       msgMotorHLFB[3] = true;
+      // set statuses to Error
+      statusPacketBuffer.packet.MotorThreeStatus = 3;
     }
   } else {
     MoveToPosition(3, desiredMotorPosition[3]);
